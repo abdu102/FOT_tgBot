@@ -4,15 +4,15 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
-    "build": "tsc -p tsconfig.json && prisma generate",
-    "prestart": "prisma migrate deploy",
+    "build": "tsc -p tsconfig.json",
+    "prestart": "prisma generate && prisma migrate deploy",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "ts-node prisma/seed.ts",
     "format": "prettier --write .",
-    "postinstall": "prisma generate"
+    "postinstall": ""
   },
   "engines": {
     "node": "^20.0.0"
