@@ -16,6 +16,8 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
+EXPOSE 3000
+
 ENV NODE_ENV=production
 
 # Run migrations then start bot (long polling)
