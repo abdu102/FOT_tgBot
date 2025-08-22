@@ -18,12 +18,6 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
     async (ctx) => {
       const age = parseInt((ctx.message as any)?.text?.trim());
       (ctx.wizard.state as any).age = isNaN(age) ? null : age;
-      await ctx.reply('🧭 Pozitsiya? (GK/DEF/MID/FWD)');
-      return ctx.wizard.next();
-    },
-    async (ctx) => {
-      const position = (ctx.message as any)?.text?.trim();
-      (ctx.wizard.state as any).position = position;
       await ctx.reply(
         '📞 Telefon raqamingizni yuboring / Отправьте номер телефона',
         Markup.keyboard([[Markup.button.contactRequest('📞 Share / Отправить')]]).resize().oneTime()
@@ -39,7 +33,6 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
         data: {
           firstName: (ctx.wizard.state as any).name,
           age: (ctx.wizard.state as any).age,
-          position: (ctx.wizard.state as any).position,
           phone,
         },
       });

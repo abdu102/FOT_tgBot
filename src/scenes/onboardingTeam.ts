@@ -3,7 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 
 type TeamWizardState = {
   teamName?: string;
-  members: Array<{ name: string; phone?: string; age?: number; position?: string }>;
+  members: Array<{ name: string; phone?: string; age?: number }>;
 };
 
 export function onboardingTeamScene(prisma: PrismaClient) {
@@ -39,13 +39,7 @@ export function onboardingTeamScene(prisma: PrismaClient) {
       const age = parseInt((ctx.message as any)?.text?.trim());
       const state = (ctx.wizard.state as any as TeamWizardState);
       state.members[state.members.length - 1].age = isNaN(age) ? undefined : age;
-      await ctx.reply('🧭 Pozitsiya? (GK/DEF/MID/FWD)');
-      return ctx.wizard.next();
-    },
-    async (ctx) => {
-      const position = (ctx.message as any)?.text?.trim();
       const state = (ctx.wizard.state as any as TeamWizardState);
-      state.members[state.members.length - 1].position = position;
       const count = state.members.length;
       if (count < 7) {
         await ctx.reply(`👤 ${count + 1}-o‘yinchi ismi? / Имя игрока №${count + 1}`);
@@ -83,7 +77,6 @@ export function onboardingTeamScene(prisma: PrismaClient) {
               firstName: m.name,
               phone: m.phone,
               age: m.age,
-              position: m.position,
             },
           });
         }

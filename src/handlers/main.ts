@@ -57,7 +57,7 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     const u = await prisma.user.findUnique({ where: { id: userId }, include: { stats: true } });
     const ps = u?.stats?.[0];
     await ctx.reply(
-      `👤 ${u?.firstName || ''}\n📞 ${u?.phone || '-'}\n🎯 ${u?.position || '-'}\n⭐️ ${ps?.rating ?? 0} | ⚽ ${ps?.goals ?? 0} | 🅰️ ${ps?.assists ?? 0} | 🏆 ${ps?.wins ?? 0}`,
+      `👤 ${u?.firstName || ''}\n📞 ${u?.phone || '-'}\n⭐️ ${ps?.rating ?? 0} | ⚽ ${ps?.goals ?? 0} | 🅰️ ${ps?.assists ?? 0} | 🏆 ${ps?.wins ?? 0}`,
       buildMainKeyboard(ctx)
     );
   });
