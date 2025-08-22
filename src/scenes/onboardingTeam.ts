@@ -39,7 +39,6 @@ export function onboardingTeamScene(prisma: PrismaClient) {
       const age = parseInt((ctx.message as any)?.text?.trim());
       const state = (ctx.wizard.state as any as TeamWizardState);
       state.members[state.members.length - 1].age = isNaN(age) ? undefined : age;
-      const state = (ctx.wizard.state as any as TeamWizardState);
       const count = state.members.length;
       if (count < 7) {
         await ctx.reply(`👤 ${count + 1}-o‘yinchi ismi? / Имя игрока №${count + 1}`);
