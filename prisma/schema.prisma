@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  telegramId    String   @unique
+  phone         String?  @unique
+  firstName     String
+  lastName      String?
+  language      String   @default("uz")
+  age           Int?
+  position      String?
+  isCaptain     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  teams         TeamMember[]
+  registrations Registration[]
+  payments      Payment[]
+  stats         PlayerStat[]
+  matchStats    MatchStat[]
+  captainTeams  Team[]        @relation("TeamCaptain")
+}
+
+model Team {
+  id          String       @id @default(cuid())
+  name        String
+  captainId   String
+  captain     User         @relation("TeamCaptain", fields: [captainId], references: [id])
+  members     TeamMember[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  registrations Registration[]
+  payments      Payment[]
+}
+
+model TeamMember {
+  id        String  @id @default(cuid())
+  teamId    String
+  userId    String
+  role      String? // e.g., player, substitute
+  team      Team    @relation(fields: [teamId], references: [id])
+  user      User    @relation(fields: [userId], references: [id])
+  @@unique([teamId, userId])
+}
+
+model Match {
+  id            String          @id @default(cuid())
+  dateTime      DateTime
+  location      String
+  description   String?
+  pricePerUser  Int             @default(40000)
+  capacityPerTeam Int           @default(7)
+  registrations Registration[]
+  stats         MatchStat[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model Registration {
+  id          String   @id @default(cuid())
+  matchId     String
+  userId      String?
+  teamId      String?
+  type        RegistrationType
+  status      RegistrationStatus @default(PENDING)
+  groupIndex  Int?
+  createdAt   DateTime @default(now())
+  approvedAt  DateTime?
+  match       Match    @relation(fields: [matchId], references: [id])
+  user        User?    @relation(fields: [userId], references: [id])
+  team        Team?    @relation(fields: [teamId], references: [id])
+  payment     Payment?
+}
+
+enum RegistrationType {
+  INDIVIDUAL
+  TEAM
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model Payment {
+  id               String   @id @default(cuid())
+  registrationId   String   @unique
+  amount           Int
+  method           String   // MANUAL, PAYME, CLICK
+  status           PaymentStatus @default(PENDING)
+  createdAt        DateTime @default(now())
+  confirmedAt      DateTime?
+  registration     Registration @relation(fields: [registrationId], references: [id])
+  userId           String?
+  teamId           String?
+  user             User?    @relation(fields: [userId], references: [id])
+  team             Team?    @relation(fields: [teamId], references: [id])
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  REFUNDED
+}
+
+model MatchStat {
+  id        String  @id @default(cuid())
+  matchId   String
+  userId    String
+  goals     Int     @default(0)
+  assists   Int     @default(0)
+  won       Boolean @default(false)
+  match     Match   @relation(fields: [matchId], references: [id])
+  user      User    @relation(fields: [userId], references: [id])
+  @@unique([matchId, userId])
+}
+
+model PlayerStat {
+  id        String  @id @default(cuid())
+  userId    String  @unique
+  rating    Float   @default(0)
+  goals     Int     @default(0)
+  assists   Int     @default(0)
+  wins      Int     @default(0)
+  user      User    @relation(fields: [userId], references: [id])
+}
+
+
