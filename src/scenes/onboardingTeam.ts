@@ -1,5 +1,6 @@
 import { Scenes, Markup } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
+import { buildMainKeyboard } from '../keyboards/main';
 
 type TeamWizardState = {
   teamName?: string;
@@ -86,6 +87,7 @@ export function onboardingTeamScene(prisma: PrismaClient) {
         });
       }
       await ctx.reply('✅ Jamoa ro‘yxatdan o‘tdi! / Команда зарегистрирована!', Markup.removeKeyboard());
+      await ctx.reply('📋 Asosiy menyu / Главное меню', buildMainKeyboard(ctx));
       return ctx.scene.leave();
     },
   );

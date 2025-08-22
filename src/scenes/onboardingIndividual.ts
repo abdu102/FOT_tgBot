@@ -1,6 +1,7 @@
 import { Scenes, Markup } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { linkTelegramUserByPhone } from '../services/linkByPhone';
+import { buildMainKeyboard } from '../keyboards/main';
 
 export function onboardingIndividualScene(prisma: PrismaClient) {
   const scene = new Scenes.WizardScene<Scenes.WizardContext>(
@@ -38,6 +39,7 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
       });
       await linkTelegramUserByPhone(prisma, userId);
       await ctx.reply('✅ Ro‘yxatdan o‘tish yakunlandi! / Регистрация завершена!', Markup.removeKeyboard());
+      await ctx.reply('📋 Asosiy menyu / Главное меню', buildMainKeyboard(ctx));
       return ctx.scene.leave();
     },
   );
