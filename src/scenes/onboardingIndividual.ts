@@ -35,12 +35,13 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
         return; // remain on same step
       }
       // check uniqueness
-      const existing = await prisma.user.findUnique({ where: { username } }).catch(() => null);
+      const uname = username.toLowerCase();
+      const existing = await prisma.user.findUnique({ where: { username: uname } }).catch(() => null);
       if (existing) {
         await ctx.reply('Bu username band, boshqasini kiriting');
         return; // stay
       }
-      (ctx.wizard.state as any).username = username;
+      (ctx.wizard.state as any).username = uname;
       await ctx.reply('🔐 Parol kiriting / Введите пароль (min 4)');
       return ctx.wizard.next();
     },
@@ -61,7 +62,8 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
       const msg: any = ctx.message;
       const phone: string | undefined = msg?.contact?.phone_number || msg?.text?.trim();
       const userId = (ctx.state as any).userId as string;
-      const bcrypt = (await import('bcryptjs')).default;
+      const bcryptModule: any = await import('bcryptjs');
+      const bcrypt = bcryptModule.default || bcryptModule;
       const hash = await bcrypt.hash((ctx.wizard.state as any).password || '0000', 10);
       const normalizedPhone = (phone || '').replace(/[^0-9+]/g, '');
       try {

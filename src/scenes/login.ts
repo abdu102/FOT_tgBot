@@ -11,7 +11,7 @@ export function loginScene(prisma: PrismaClient) {
       return ctx.wizard.next();
     },
     async (ctx) => {
-      (ctx.wizard.state as any).loginName = (ctx.message as any)?.text?.trim();
+      (ctx.wizard.state as any).loginName = (ctx.message as any)?.text?.trim().toLowerCase();
       // Ensure user exists by username
       const name = (ctx.wizard.state as any).loginName as string;
       const user = await prisma.user.findUnique({ where: { username: name } });
@@ -23,9 +23,11 @@ export function loginScene(prisma: PrismaClient) {
       return ctx.wizard.next();
     },
     async (ctx) => {
-      const name = ((ctx.wizard.state as any).loginName as string).trim();
+      const name = ((ctx.wizard.state as any).loginName as string).trim().toLowerCase();
       const pass = (ctx.message as any)?.text?.trim();
       const user = await prisma.user.findFirst({ where: { username: name, isActive: true } });
+      const bcryptModule: any = await import('bcryptjs');
+      const bcrypt = bcryptModule.default || bcryptModule;
       if (!user?.passwordHash || !(await bcrypt.compare(pass, user.passwordHash))) {
         await ctx.reply('Login yoki parol noto‘g‘ri / Неверные данные', buildAuthKeyboard(ctx));
         return ctx.scene.leave();
