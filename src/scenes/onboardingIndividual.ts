@@ -13,6 +13,12 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
     async (ctx) => {
       const name = (ctx.message as any)?.text?.trim();
       (ctx.wizard.state as any).name = name;
+      await ctx.reply('👤 Familiyangiz? / Ваша фамилия?');
+      return ctx.wizard.next();
+    },
+    async (ctx) => {
+      const lastName = (ctx.message as any)?.text?.trim();
+      (ctx.wizard.state as any).lastName = lastName;
       await ctx.reply('📅 Yoshingiz? / Ваш возраст?');
       return ctx.wizard.next();
     },
@@ -37,18 +43,22 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
       const userId = (ctx.state as any).userId as string;
       const bcrypt = (await import('bcryptjs')).default;
       const hash = await bcrypt.hash((ctx.wizard.state as any).password || '0000', 10);
+      const normalizedPhone = (phone || '').replace(/[^0-9+]/g, '');
       await prisma.user.update({
         where: { id: userId },
         data: {
           firstName: (ctx.wizard.state as any).name,
+          lastName: (ctx.wizard.state as any).lastName,
           age: (ctx.wizard.state as any).age,
-          phone,
+          phone: normalizedPhone || null,
           passwordHash: hash,
+          isActive: true,
         },
       });
       await linkTelegramUserByPhone(prisma, userId);
       await ctx.reply('✅ Ro‘yxatdan o‘tish yakunlandi! / Регистрация завершена!', Markup.removeKeyboard());
       await ctx.reply('📋 Asosiy menyu / Главное меню', buildMainKeyboard(ctx));
+      (ctx.state as any).isRegistered = true;
       return ctx.scene.leave();
     },
   );

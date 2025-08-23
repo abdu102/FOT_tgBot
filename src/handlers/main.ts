@@ -106,7 +106,7 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
 
   // Login button
   bot.hears(['🔐 Kirish', '🔐 Войти'], async (ctx) => {
-    await ctx.reply('Login: ismingizni yuboring / Отправьте имя');
+    await ctx.reply('Login: username yoki ism yuboring / Отправьте username или имя');
     (ctx.session as any).awaitingLoginName = true;
   });
 
@@ -119,9 +119,9 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
       return ctx.reply('Parol yuboring / Отправьте пароль');
     }
     if (sess.awaitingLoginPassword) {
-      const name = sess.loginName as string;
+      const name = (sess.loginName as string).trim();
       const pass = (ctx.message as any).text.trim();
-      const user = await prisma.user.findFirst({ where: { firstName: name, isActive: true } });
+      const user = await prisma.user.findFirst({ where: { OR: [{ username: name }, { firstName: name }], isActive: true } });
       if (!user?.passwordHash || !(await bcrypt.compare(pass, user.passwordHash))) {
         sess.awaitingLoginPassword = false;
         return ctx.reply('Login yoki parol noto‘g‘ri / Неверные данные');
