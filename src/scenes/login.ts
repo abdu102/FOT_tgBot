@@ -37,7 +37,7 @@ export function loginScene(prisma: PrismaClient) {
         // collect pending invite from any placeholder linked to this telegramId
         const placeholdersRaw = await prisma.user.findMany({ where: { telegramId: tgId, id: { not: user.id } } });
         const placeholders = placeholdersRaw.map((u: any) => ({ id: u.id as string, pendingInviteToken: (u as any).pendingInviteToken as string | null }));
-        const tokenFromPlaceholders = placeholders.find((p) => p.pendingInviteToken)?.pendingInviteToken as string | undefined;
+        const tokenFromPlaceholders = placeholders.find((p: { id: string; pendingInviteToken: string | null }) => p.pendingInviteToken)?.pendingInviteToken as string | undefined;
         // unlink placeholders
         await prisma.user.updateMany({ where: { telegramId: tgId, id: { not: user.id } }, data: { telegramId: `unlinked_${Date.now()}_${Math.random().toString(36).slice(2)}`, pendingInviteToken: null } as any });
         await prisma.user.update({ where: { id: user.id }, data: { telegramId: tgId, isActive: true } });
@@ -55,7 +55,7 @@ export function loginScene(prisma: PrismaClient) {
           await prisma.user.update({ where: { id: user.id }, data: { pendingInviteToken: null } as any }).catch(() => {});
           // also clear on placeholders just in case
           if (placeholders.length) {
-            await prisma.user.updateMany({ where: { id: { in: placeholders.map((p) => p.id) } }, data: { pendingInviteToken: null } as any }).catch(() => {});
+            await prisma.user.updateMany({ where: { id: { in: placeholders.map((p: { id: string }) => p.id) } }, data: { pendingInviteToken: null } as any }).catch(() => {});
           }
           if (team) {
             await ctx.reply(`✅ Siz ${team.name} jamoasiga qo‘shildingiz!`);

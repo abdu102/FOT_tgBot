@@ -11,7 +11,7 @@ export function matchStatsScene(prisma: PrismaClient) {
       if (!sid) { await ctx.reply('Session topilmadi'); return ctx.scene.leave(); }
       const matches = await prisma.match.findMany({ where: { sessionId: sid } as any });
       if (!matches.length) { await ctx.reply('Hali match yo‘q'); return ctx.scene.leave(); }
-      const rows = matches.map((m) => [{ text: `Match ${m.id}`, callback_data: `mstat_${m.id}` }]);
+      const rows = matches.map((m: { id: string }) => [{ text: `Match ${m.id}`, callback_data: `mstat_${m.id}` }]);
       await ctx.reply('Match tanlang', { reply_markup: { inline_keyboard: rows } } as any);
       return ctx.wizard.next();
     },
