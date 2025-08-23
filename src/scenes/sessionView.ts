@@ -101,14 +101,17 @@ export function sessionViewScene(prisma: PrismaClient) {
     const teamId = side === 'H' ? (m as any)?.homeTeamId : (m as any)?.awayTeamId;
     if (!teamId) return;
     const members = await prisma.teamMember.findMany({ where: { teamId }, include: { user: true } });
-    const rows = members.map((tm: any) => [{ text: tm.user.firstName, callback_data: `m_goal_p_${mid}_${tm.userId}` }]);
+    (ctx.session as any).goalPick = { mid, userIds: members.map((tm: any) => tm.userId) };
+    const rows = members.map((tm: any, i: number) => [{ text: tm.user.firstName, callback_data: `g_p_${i}` }]);
     rows.push([{ text: '⬅️ Back', callback_data: `m_goal_${mid}` }]);
     await ctx.reply('Goll scorer', { reply_markup: { inline_keyboard: rows } } as any);
   });
-  (scene as any).action?.(/m_goal_p_(.*)_(.*)/, async (ctx: any) => {
-    const mid = (ctx.match as any)[1];
-    const userId = (ctx.match as any)[2];
-    await (prisma as any).matchStat.upsert({ where: { matchId_userId: { matchId: mid, userId } }, update: { goals: { increment: 1 } as any }, create: { matchId: mid, userId, goals: 1, assists: 0, won: false } });
+  (scene as any).action?.(/g_p_(\d+)/, async (ctx: any) => {
+    const idx = parseInt((ctx.match as any)[1], 10);
+    const pick = (ctx.session as any).goalPick as { mid: string; userIds: string[] } | undefined;
+    if (!pick || isNaN(idx) || !pick.userIds[idx]) return;
+    const userId = pick.userIds[idx];
+    await (prisma as any).matchStat.upsert({ where: { matchId_userId: { matchId: pick.mid, userId } }, update: { goals: { increment: 1 } }, create: { matchId: pick.mid, userId, goals: 1, assists: 0, won: false } });
     try { await ctx.answerCbQuery('Goal +1'); } catch {}
   });
   (scene as any).action?.(/m_ast_(.*)/, async (ctx: any) => {
@@ -127,14 +130,17 @@ export function sessionViewScene(prisma: PrismaClient) {
     const teamId = side === 'H' ? (m as any)?.homeTeamId : (m as any)?.awayTeamId;
     if (!teamId) return;
     const members = await prisma.teamMember.findMany({ where: { teamId }, include: { user: true } });
-    const rows = members.map((tm: any) => [{ text: tm.user.firstName, callback_data: `m_ast_p_${mid}_${tm.userId}` }]);
+    (ctx.session as any).assistPick = { mid, userIds: members.map((tm: any) => tm.userId) };
+    const rows = members.map((tm: any, i: number) => [{ text: tm.user.firstName, callback_data: `a_p_${i}` }]);
     rows.push([{ text: '⬅️ Back', callback_data: `m_ast_${mid}` }]);
     await ctx.reply('Assistant', { reply_markup: { inline_keyboard: rows } } as any);
   });
-  (scene as any).action?.(/m_ast_p_(.*)_(.*)/, async (ctx: any) => {
-    const mid = (ctx.match as any)[1];
-    const userId = (ctx.match as any)[2];
-    await (prisma as any).matchStat.upsert({ where: { matchId_userId: { matchId: mid, userId } }, update: { assists: { increment: 1 } as any }, create: { matchId: mid, userId, goals: 0, assists: 1, won: false } });
+  (scene as any).action?.(/a_p_(\d+)/, async (ctx: any) => {
+    const idx = parseInt((ctx.match as any)[1], 10);
+    const pick = (ctx.session as any).assistPick as { mid: string; userIds: string[] } | undefined;
+    if (!pick || isNaN(idx) || !pick.userIds[idx]) return;
+    const userId = pick.userIds[idx];
+    await (prisma as any).matchStat.upsert({ where: { matchId_userId: { matchId: pick.mid, userId } }, update: { assists: { increment: 1 } }, create: { matchId: pick.mid, userId, goals: 0, assists: 1, won: false } });
     try { await ctx.answerCbQuery('Assist +1'); } catch {}
   });
 
