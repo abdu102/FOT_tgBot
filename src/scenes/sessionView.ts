@@ -69,16 +69,16 @@ export function sessionViewScene(prisma: PrismaClient) {
     if (!m) return;
     const kb = {
       inline_keyboard: [
-        [{ text: '🏆 Home won', callback_data: `m_res_${mid}_H` }, { text: '🏆 Away won', callback_data: `m_res_${mid}_A` }, { text: '🤝 Draw', callback_data: `m_res_${mid}_D` }],
+        [{ text: '🏆 1 won', callback_data: `m_res_${mid}_1` }, { text: '🏆 2 won', callback_data: `m_res_${mid}_2` }, { text: '🤝 Draw', callback_data: `m_res_${mid}_D` }],
         [{ text: '⚽ Add goal', callback_data: `m_goal_${mid}` }, { text: '🅰️ Add assist', callback_data: `m_ast_${mid}` }],
       ],
     } as any;
     await ctx.reply(`${m.homeTeam?.name || '-'} ${m.homeScore} : ${m.awayScore} ${m.awayTeam?.name || '-'}`, { reply_markup: kb } as any);
   });
-  (scene as any).action?.(/m_res_(.*)_(H|A|D)/, async (ctx: any) => {
+  (scene as any).action?.(/m_res_(.*)_(1|2|D)/, async (ctx: any) => {
     const mid = (ctx.match as any)[1];
     const r = (ctx.match as any)[2];
-    const data: any = { result: r === 'H' ? 'HOME' : r === 'A' ? 'AWAY' : 'DRAW' };
+    const data: any = { result: r === '1' ? 'HOME' : r === '2' ? 'AWAY' : 'DRAW' };
     await prisma.match.update({ where: { id: mid }, data });
     await ctx.answerCbQuery('Saved');
   });
@@ -87,8 +87,8 @@ export function sessionViewScene(prisma: PrismaClient) {
     const m = await prisma.match.findUnique({ where: { id: mid } });
     if (!m) return;
     const rows: any[] = [];
-    if ((m as any).homeTeamId) rows.push([{ text: 'Home team', callback_data: `m_goal_t_${mid}_H` }]);
-    if ((m as any).awayTeamId) rows.push([{ text: 'Away team', callback_data: `m_goal_t_${mid}_A` }]);
+    if ((m as any).homeTeamId) rows.push([{ text: 'Team 1', callback_data: `m_goal_t_${mid}_H` }]);
+    if ((m as any).awayTeamId) rows.push([{ text: 'Team 2', callback_data: `m_goal_t_${mid}_A` }]);
     await ctx.reply('Jamoani tanlang', { reply_markup: { inline_keyboard: rows } } as any);
   });
   (scene as any).action?.(/m_goal_t_(.*)_(H|A)/, async (ctx: any) => {
@@ -112,8 +112,8 @@ export function sessionViewScene(prisma: PrismaClient) {
     const m = await prisma.match.findUnique({ where: { id: mid } });
     if (!m) return;
     const rows: any[] = [];
-    if ((m as any).homeTeamId) rows.push([{ text: 'Home team', callback_data: `m_ast_t_${mid}_H` }]);
-    if ((m as any).awayTeamId) rows.push([{ text: 'Away team', callback_data: `m_ast_t_${mid}_A` }]);
+    if ((m as any).homeTeamId) rows.push([{ text: 'Team 1', callback_data: `m_ast_t_${mid}_H` }]);
+    if ((m as any).awayTeamId) rows.push([{ text: 'Team 2', callback_data: `m_ast_t_${mid}_A` }]);
     await ctx.reply('Jamoani tanlang', { reply_markup: { inline_keyboard: rows } } as any);
   });
   (scene as any).action?.(/m_ast_t_(.*)_(H|A)/, async (ctx: any) => {
