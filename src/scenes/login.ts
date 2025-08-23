@@ -41,11 +41,13 @@ export function loginScene(prisma: PrismaClient) {
         await ctx.reply('✅ Kirish muvaffaqiyatli / Вход выполнен');
         await ctx.reply('📋 Asosiy menyu / Главное меню', (user.phone ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx)) as any);
         // auto-join pending invite if exists
-        const pending = (ctx.session as any).pendingInviteToken as string | undefined;
+        // prefer persisted pending invite on user
+        const freshUser = await prisma.user.findUnique({ where: { id: user.id } });
+        const pending = freshUser?.pendingInviteToken as string | undefined;
         if (pending) {
           const { tryJoinByInvite } = await import('../services/invite');
           const team = await tryJoinByInvite(prisma, pending, user.id);
-          (ctx.session as any).pendingInviteToken = undefined;
+          await prisma.user.update({ where: { id: user.id }, data: { pendingInviteToken: null } }).catch(() => {});
           if (team) {
             await ctx.reply(`✅ Siz ${team.name} jamoasiga qo‘shildingiz!`);
             const cap = await prisma.user.findUnique({ where: { id: team.captainId } });

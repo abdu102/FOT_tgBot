@@ -21,6 +21,7 @@ model User {
   username      String?  @unique
   passwordHash  String?
   isActive      Boolean  @default(true)
+  pendingInviteToken String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   teams         TeamMember[]

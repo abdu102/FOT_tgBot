@@ -72,8 +72,10 @@ bot.start(async (ctx) => {
         await ctx.reply('Taklif havolasi eskirgan yoki noto‘g‘ri.');
       }
     } else {
-      // store pending invite and ask to login/register
-      (ctx.session as any).pendingInviteToken = token;
+      // persist pending invite on user record and ask to login/register
+      if ((ctx.state as any).userId) {
+        await prisma.user.update({ where: { id: (ctx.state as any).userId }, data: { pendingInviteToken: token } }).catch(() => {});
+      }
       await ctx.reply('🔗 Taklif qabul qilindi. Iltimos, avval tizimga kiring yoki ro‘yxatdan o‘ting.');
     }
   }
