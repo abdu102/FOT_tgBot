@@ -1,5 +1,6 @@
 import { Scenes, Markup } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
+import { buildMainKeyboard } from '../keyboards/main';
 
 type MemberDraft = { name: string; phone?: string; age?: number; username?: string };
 
@@ -19,7 +20,7 @@ export function teamCreateScene(prisma: PrismaClient) {
     // Step 2: member name
     async (ctx) => {
       const txt = (ctx.message as any)?.text?.trim();
-      if (txt === '⬅️ Menyuga qaytish') { await ctx.reply('Menyuga qaytdingiz'); return ctx.scene.leave(); }
+      if (txt === '⬅️ Menyuga qaytish') { await ctx.reply('📋 Asosiy menyu', buildMainKeyboard(ctx)); return ctx.scene.leave(); }
       (ctx.wizard.state as any).currentName = txt;
       await ctx.reply('📅 Yoshi? / Возраст?', Markup.keyboard([[ '⬅️ Menyuga qaytish' ]]).resize());
       return ctx.wizard.next();
@@ -27,7 +28,7 @@ export function teamCreateScene(prisma: PrismaClient) {
     // Step 3: member age
     async (ctx) => {
       const txt = (ctx.message as any)?.text?.trim();
-      if (txt === '⬅️ Menyuga qaytish') { await ctx.reply('Menyuga qaytdingiz'); return ctx.scene.leave(); }
+      if (txt === '⬅️ Menyuga qaytish') { await ctx.reply('📋 Asosiy menyu', buildMainKeyboard(ctx)); return ctx.scene.leave(); }
       const ageNum = parseInt(txt);
       (ctx.wizard.state as any).currentAge = isNaN(ageNum) ? undefined : ageNum;
       await ctx.reply('📞 Telefon raqam? (+998...)', Markup.keyboard([[ '⬅️ Menyuga qaytish' ]]).resize());
@@ -36,7 +37,7 @@ export function teamCreateScene(prisma: PrismaClient) {
     // Step 4: member phone
     async (ctx) => {
       const txt = (ctx.message as any)?.text?.trim();
-      if (txt === '⬅️ Menyuga qaytish') { await ctx.reply('Menyuga qaytish'); return ctx.scene.leave(); }
+      if (txt === '⬅️ Menyuga qaytish') { await ctx.reply('📋 Asosiy menyu', buildMainKeyboard(ctx)); return ctx.scene.leave(); }
       const phone = (txt || '').replace(/[^0-9+]/g, '');
       (ctx.wizard.state as any).currentPhone = phone || undefined;
       await ctx.reply('👤 Telegram username ( @siz_yozmasdan )?', Markup.keyboard([[ '⬅️ Menyuga qaytish' ]]).resize());
@@ -69,14 +70,17 @@ export function teamCreateScene(prisma: PrismaClient) {
       if (!('callback_query' in ctx.update)) return;
       const data = (ctx.update.callback_query as any).data as string;
       if (data === 'team_add_member') {
+        await ctx.answerCbQuery();
         await ctx.reply('👤 A’zoning ism va familiyasi?', Markup.keyboard([[ '⬅️ Menyuga qaytish' ]]).resize());
         return ctx.wizard.selectStep(2);
       }
       if (data === 'team_finish') {
+        await ctx.answerCbQuery();
         return ctx.wizard.selectStep(7);
       }
       if (data === 'team_back_menu') {
-        await ctx.reply('Menyuga qaytdingiz / Возврат в меню', Markup.removeKeyboard());
+        await ctx.answerCbQuery();
+        await ctx.reply('📋 Asosiy menyu', buildMainKeyboard(ctx));
         return ctx.scene.leave();
       }
     },
@@ -112,9 +116,9 @@ export function teamCreateScene(prisma: PrismaClient) {
     }
   );
 
-  scene.action('team_add_member', async (ctx) => ctx.wizard.selectStep(2));
-  scene.action('team_finish', async (ctx) => ctx.wizard.selectStep(7));
-  scene.action('team_back_menu', async (ctx) => ctx.scene.leave());
+  scene.action('team_add_member', async (ctx) => { await ctx.answerCbQuery(); await ctx.reply('👤 A’zoning ism va familiyasi?', Markup.keyboard([[ '⬅️ Menyuga qaytish' ]]).resize()); return ctx.wizard.selectStep(2); });
+  scene.action('team_finish', async (ctx) => { await ctx.answerCbQuery(); return ctx.wizard.selectStep(7); });
+  scene.action('team_back_menu', async (ctx) => { await ctx.answerCbQuery(); await ctx.reply('📋 Asosiy menyu', buildMainKeyboard(ctx)); return ctx.scene.leave(); });
 
   return scene;
 }
