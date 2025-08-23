@@ -1,6 +1,6 @@
 import { Scenes } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
-import { computeSessionTable } from '../services/session';
+import { computeSessionTable, getSessionTopPlayers } from '../services/session';
 
 export function sessionViewScene(prisma: PrismaClient) {
   const scene = new Scenes.WizardScene<Scenes.WizardContext>(
@@ -36,13 +36,39 @@ export function sessionViewScene(prisma: PrismaClient) {
     const table = await computeSessionTable(prisma, id);
     const lines = table.map((t: any, i: number) => `${i+1}. ${t.team.name} — ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`).join('\n') || '—';
     await ctx.answerCbQuery('Stopped');
-    await ctx.reply(`🏁 Sessiya yakunlandi\n\n${lines}`, { reply_markup: { inline_keyboard: [[{ text: '📊 Statistics', callback_data: `sess_stats_${id}` }]] } } as any);
+    await ctx.reply(`🏁 Sessiya yakunlandi\n\n${lines}`, { reply_markup: { inline_keyboard: [[{ text: '📊 Statistics', callback_data: `sess_stats_${id}` }], [{ text: '🏅 MoM', callback_data: `sess_mom_${id}` }]] } } as any);
   });
   (scene as any).action?.(/sess_add_match_(.*)/, async (ctx: any) => {
     await ctx.scene.enter('admin:sessionMatchAdd', { sessionId: (ctx.match as any)[1] });
   });
   (scene as any).action?.(/sess_stats_(.*)/, async (ctx: any) => {
-    await ctx.scene.enter('admin:sessionMatchStats', { sessionId: (ctx.match as any)[1] });
+    const id = (ctx.match as any)[1];
+    const { topScorers, topAssists } = await getSessionTopPlayers(prisma, id);
+    const sLines = topScorers.map((p: any, i: number) => `${i+1}. ${p.name} — ⚽ ${p.goals}`).join('\n') || '—';
+    const aLines = topAssists.map((p: any, i: number) => `${i+1}. ${p.name} — 🅰️ ${p.assists}`).join('\n') || '—';
+    await ctx.reply(`Top Scorers:\n${sLines}\n\nTop Assists:\n${aLines}`);
+  });
+
+  // Session MoM: choose team -> choose player
+  (scene as any).action?.(/sess_mom_(.*)/, async (ctx: any) => {
+    const id = (ctx.match as any)[1];
+    const st = await (prisma as any).session.findUnique({ where: { id }, include: { teams: { include: { team: true } } } });
+    if (!st) return;
+    const rows = st.teams.map((t: any) => [{ text: t.team.name, callback_data: `sess_mom_team_${id}_${t.teamId}` }]);
+    await ctx.reply('Jamoani tanlang', { reply_markup: { inline_keyboard: rows } } as any);
+  });
+  (scene as any).action?.(/sess_mom_team_(.*)_(.*)/, async (ctx: any) => {
+    const sid = (ctx.match as any)[1];
+    const teamId = (ctx.match as any)[2];
+    const members = await prisma.teamMember.findMany({ where: { teamId }, include: { user: true } });
+    const rows = members.map((tm: any) => [{ text: tm.user.firstName, callback_data: `sess_mom_pick_${sid}_${tm.userId}` }]);
+    await ctx.reply('O‘yinchini tanlang', { reply_markup: { inline_keyboard: rows } } as any);
+  });
+  (scene as any).action?.(/sess_mom_pick_(.*)_(.*)/, async (ctx: any) => {
+    const sid = (ctx.match as any)[1];
+    const userId = (ctx.match as any)[2];
+    await (prisma as any).session.update({ where: { id: sid }, data: { manOfTheSessionUserId: userId } });
+    await ctx.answerCbQuery('MoM belgilandi');
   });
 
   return scene;

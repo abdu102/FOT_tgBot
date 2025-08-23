@@ -43,4 +43,25 @@ export async function computeSessionTable(prisma: PrismaClient, sessionId: strin
   return table as Array<{ team: { name: string }, points: number, goalsFor: number, goalsAgainst: number }>
 }
 
+export async function getSessionTopPlayers(prisma: PrismaClient, sessionId: string) {
+  const matches = await prisma.match.findMany({ where: { sessionId } as any });
+  const matchIds = matches.map((m) => m.id);
+  if (!matchIds.length) return { topScorers: [], topAssists: [] };
+  const stats = await prisma.matchStat.findMany({ where: { matchId: { in: matchIds } }, include: { user: true } });
+  const goalsMap = new Map<string, { userId: string; name: string; goals: number }>();
+  const assistsMap = new Map<string, { userId: string; name: string; assists: number }>();
+  for (const s of stats) {
+    const name = `${s.user.firstName}${s.user.lastName ? ' ' + s.user.lastName : ''}`;
+    const g = goalsMap.get(s.userId) || { userId: s.userId, name, goals: 0 };
+    g.goals += s.goals;
+    goalsMap.set(s.userId, g);
+    const a = assistsMap.get(s.userId) || { userId: s.userId, name, assists: 0 };
+    a.assists += s.assists;
+    assistsMap.set(s.userId, a);
+  }
+  const topScorers = Array.from(goalsMap.values()).sort((x, y) => y.goals - x.goals).slice(0, 10);
+  const topAssists = Array.from(assistsMap.values()).sort((x, y) => y.assists - x.assists).slice(0, 10);
+  return { topScorers, topAssists };
+}
+
 

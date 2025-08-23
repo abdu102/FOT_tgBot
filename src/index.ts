@@ -52,6 +52,8 @@ registerCancelHandlers(bot, prisma);
 registerPaymentHandlers(bot, prisma);
 
 bot.start(async (ctx) => {
+  // Ensure any active scene is exited so /start always works
+  try { await (ctx.scene as any)?.leave(); } catch {}
   const name = ctx.from?.first_name ?? 'do‘st';
   const userId = (ctx.state as any).userId as string;
   const user = await prisma.user.findUnique({ where: { id: userId } });
