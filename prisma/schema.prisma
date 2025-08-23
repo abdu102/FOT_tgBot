@@ -64,6 +64,7 @@ model Match {
   description   String?
   pricePerUser  Int             @default(40000)
   capacityPerTeam Int           @default(7)
+  type          MatchType       @default(FIVE_V_FIVE)
   winnerTeamId  String?
   winnerTeam    Team?           @relation("MatchWinnerTeam", fields: [winnerTeamId], references: [id])
   manOfTheMatchUserId String?
@@ -72,6 +73,11 @@ model Match {
   stats         MatchStat[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
+}
+
+enum MatchType {
+  FIVE_V_FIVE
+  SIX_V_SIX
 }
 
 model Registration {

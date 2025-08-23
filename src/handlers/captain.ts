@@ -18,7 +18,7 @@ export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, pri
     const userId2 = (ctx.state as any).userId as string;
     const isCaptain = team.captainId === userId2;
     const count = team.members.length;
-    const list = team.members.map((m: any, i: number) => `${i + 1}. ${m.user.firstName} ${m.user.lastName ?? ''} ${m.user.phone ?? ''} @${m.user.username ?? ''}`).join('\n');
+    const list = team.members.map((m: { user: { firstName: string; lastName?: string | null; phone?: string | null; username?: string | null } }, i: number) => `${i + 1}. ${m.user.firstName} ${m.user.lastName ?? ''} ${m.user.phone ?? ''} @${m.user.username ?? ''}`).join('\n');
     const warn = count < 6 ? '\n⚠️ Kamida 6 o‘yinchi bo‘lishi kerak / Минимум 6 игроков' : '';
     const keyboard: any[] = [];
     if (isCaptain) {
@@ -46,7 +46,7 @@ export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, pri
         reply_markup: { inline_keyboard: [[{ text: '➕ Jamoa yaratish', callback_data: 'team_create_scene' }]] },
       } as any);
     }
-    const list = team.members.map((m, i) => `${i + 1}. ${m.user.firstName} ${m.user.phone ?? ''}`).join('\n');
+    const list = team.members.map((m: { user: { firstName: string; phone?: string | null } }, i: number) => `${i + 1}. ${m.user.firstName} ${m.user.phone ?? ''}`).join('\n');
     await ctx.reply(`👥 ${team.name}\n${list}`, {
       reply_markup: {
         inline_keyboard: [
@@ -120,7 +120,7 @@ export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, pri
     const teamId = (ctx.match as any)[1] as string;
     const team = await prisma.team.findUnique({ where: { id: teamId }, include: { members: { include: { user: true } } } });
     if (!team) return;
-    const rows = team.members.filter(m => m.userId !== team.captainId).map(m => [{ text: `🗑️ ${m.user.firstName} ${m.user.lastName ?? ''}`, callback_data: `team_remove_member_${team.id}_${m.userId}` }]);
+    const rows = team.members.filter((m: { userId: string }) => m.userId !== team.captainId).map((m: { userId: string; user: { firstName: string; lastName?: string | null } }) => [{ text: `🗑️ ${m.user.firstName} ${m.user.lastName ?? ''}`, callback_data: `team_remove_member_${team.id}_${m.userId}` }]);
     if (!rows.length) return ctx.reply('O‘chirish uchun a’zo yo‘q');
     await ctx.reply('Kimni olib tashlaymiz?', { reply_markup: { inline_keyboard: rows } } as any);
   });
@@ -141,7 +141,7 @@ export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, pri
     const teamId = (ctx.match as any)[1] as string;
     const team = await prisma.team.findUnique({ where: { id: teamId }, include: { members: true } });
     if (!team) return;
-    const rows = team.members.filter(m => m.userId !== team.captainId).map(m => [{ text: `👑 ${m.userId}`, callback_data: `team_promote_member_${team.id}_${m.userId}` }]);
+    const rows = team.members.filter((m: { userId: string }) => m.userId !== team.captainId).map((m: { userId: string }) => [{ text: `👑 ${m.userId}`, callback_data: `team_promote_member_${team.id}_${m.userId}` }]);
     if (!rows.length) return ctx.reply('A’zo topilmadi');
     await ctx.reply('Kimni kapitan qilamiz?', { reply_markup: { inline_keyboard: rows } } as any);
   });
