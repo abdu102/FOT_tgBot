@@ -7,7 +7,7 @@ export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, pri
     const team = await prisma.team.findFirst({ where: { captainId: userId }, include: { members: { include: { user: true } } } });
     if (!team) {
       return ctx.reply('Sizda jamoa yo‘q. Yaratamizmi? / Нет команды. Создать?', {
-        reply_markup: { inline_keyboard: [[{ text: '➕ Jamoa yaratish', callback_data: 'team_create' }]] },
+        reply_markup: { inline_keyboard: [[{ text: '➕ Jamoa yaratish', callback_data: 'team_create_scene' }]] },
       } as any);
     }
     const list = team.members.map((m, i) => `${i + 1}. ${m.user.firstName} ${m.user.phone ?? ''}`).join('\n');
@@ -21,25 +21,11 @@ export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, pri
     } as any);
   });
 
-  bot.action('team_create', async (ctx) => {
+  bot.action('team_create_scene', async (ctx) => {
     const userId = (ctx.state as any).userId as string;
     const exists = await prisma.team.findFirst({ where: { captainId: userId } });
     if (exists) return ctx.reply('Sizda allaqachon jamoa bor / Команда уже есть');
-    await ctx.reply('Jamoa nomi? / Название команды?');
-    (ctx.session as any).awaitingTeamName = true;
-  });
-
-  bot.on('text', async (ctx, next) => {
-    const sess: any = ctx.session || {};
-    if (sess.awaitingTeamName) {
-      const name = (ctx.message as any).text.trim();
-      sess.awaitingTeamName = false;
-      const userId = (ctx.state as any).userId as string;
-      const team = await prisma.team.create({ data: { name, captainId: userId } });
-      await prisma.teamMember.create({ data: { teamId: team.id, userId, role: 'captain' } });
-      return ctx.reply('✅ Jamoa yaratildi / Команда создана');
-    }
-    return next();
+    await ctx.scene.enter('team:create');
   });
 }
 
