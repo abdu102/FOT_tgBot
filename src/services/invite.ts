@@ -14,4 +14,13 @@ export async function tryJoinByInvite(prisma: PrismaClient, token: string, userI
   return team;
 }
 
+export function buildInviteDeepLink(token: string): string {
+  const username = (process.env.BOT_USERNAME || '').replace(/^@/, '');
+  if (username) {
+    return `https://t.me/${username}?start=join_${token}`;
+  }
+  // Fallback to tg:// scheme if username is missing but Telegram can still resolve
+  return `tg://resolve?domain=${username}&start=join_${token}`;
+}
+
 

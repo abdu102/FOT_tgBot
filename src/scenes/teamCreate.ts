@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { buildMainKeyboard } from '../keyboards/main';
-import { generateTeamInvite } from '../services/invite';
+import { generateTeamInvite, buildInviteDeepLink } from '../services/invite';
 
 type MemberDraft = { name: string; phone?: string; age?: number; username?: string };
 
@@ -21,8 +21,7 @@ export function teamCreateScene(prisma: PrismaClient) {
       if (team) team = await prisma.team.update({ where: { id: team.id }, data: { name } });
       else team = await prisma.team.create({ data: { name, captainId: userId } });
       const { token, expires } = await generateTeamInvite(prisma, team.id);
-      const base = process.env.WEBHOOK_URL || process.env.RAILWAY_STATIC_URL || '';
-      const url = `${base?.replace(/\/$/, '')}/telegraf/${process.env.BOT_TOKEN}?start=join_${token}`;
+      const url = buildInviteDeepLink(token);
       await ctx.reply('✅ Team created.', Markup.removeKeyboard());
       await ctx.reply(`Share this invite link with your players:\n${url}\nExpires: ${expires.toISOString().slice(0,16).replace('T',' ')}`);
       await ctx.reply('You can always regenerate the link from 👥 Team → 🔗 Invite link.');

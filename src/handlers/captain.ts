@@ -1,6 +1,6 @@
 import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
-import { generateTeamInvite } from '../services/invite';
+import { generateTeamInvite, buildInviteDeepLink } from '../services/invite';
 import { buildMainKeyboard } from '../keyboards/main';
 
 export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
@@ -78,8 +78,7 @@ export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, pri
   bot.action(/team_invite_(.*)/, async (ctx) => {
     const teamId = (ctx.match as any)[1] as string;
     const inv = await generateTeamInvite(prisma, teamId);
-    const base = process.env.WEBHOOK_URL || process.env.RAILWAY_STATIC_URL || '';
-    const url = `${base?.replace(/\/$/, '')}/telegraf/${process.env.BOT_TOKEN}?start=join_${inv.token}`;
+    const url = buildInviteDeepLink(inv.token);
     await ctx.reply(`🔗 Havola: ${url}\n⏳ Amal qilish muddati: ${inv.expires.toISOString().slice(0,16).replace('T',' ')}`);
   });
 
