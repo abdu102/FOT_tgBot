@@ -30,6 +30,8 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
 
   bot.action('open_admin_panel', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
+    try { await ctx.answerCbQuery(); } catch {}
+    try { await ctx.deleteMessage(); } catch {}
     await sendAdminPanel(ctx);
   });
 
@@ -141,6 +143,8 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   // Open session view from anywhere (for Back buttons)
   bot.action(/sess_open_(.*)/, async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
+    try { await ctx.answerCbQuery(); } catch {}
+    try { await ctx.deleteMessage(); } catch {}
     await ctx.scene.enter('admin:sessionView', { sessionId: (ctx.match as any)[1] });
   });
 

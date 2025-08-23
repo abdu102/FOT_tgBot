@@ -52,9 +52,7 @@ export function sessionsScene(prisma: PrismaClient) {
       { text: header, callback_data: 'noop' },
       { text: '»', callback_data: `sess_next_${yy}_${mm}` }
     ]);
-    await ctx.editMessageReplyMarkup({ inline_keyboard: rows } as any).catch(async () => {
-      await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any);
-    });
+    try { await ctx.editMessageReplyMarkup({ inline_keyboard: rows } as any); } catch { await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any); }
   });
 
   (scene as any).action?.(/sess_next_(.*)_(.*)/, async (ctx: any) => {
@@ -77,9 +75,7 @@ export function sessionsScene(prisma: PrismaClient) {
       { text: header, callback_data: 'noop' },
       { text: '»', callback_data: `sess_next_${yy}_${mm}` }
     ]);
-    await ctx.editMessageReplyMarkup({ inline_keyboard: rows } as any).catch(async () => {
-      await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any);
-    });
+    try { await ctx.editMessageReplyMarkup({ inline_keyboard: rows } as any); } catch { await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any); }
   });
 
   (scene as any).action?.(/sess_create_(.*)/, async (ctx: any) => {

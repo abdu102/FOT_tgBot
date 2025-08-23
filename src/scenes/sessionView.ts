@@ -25,6 +25,7 @@ export function sessionViewScene(prisma: PrismaClient) {
       }
       actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
       actions.push([{ text: '⬅️ Orqaga', callback_data: 'open_admin_panel' }]);
+      try { await ctx.deleteMessage(); } catch {}
       await ctx.reply(`${header}\n\n${table}`, { reply_markup: { inline_keyboard: actions } } as any);
       return;
     }
