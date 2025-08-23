@@ -40,6 +40,18 @@ export function loginScene(prisma: PrismaClient) {
         (ctx.state as any).isAuthenticated = true;
         await ctx.reply('✅ Kirish muvaffaqiyatli / Вход выполнен');
         await ctx.reply('📋 Asosiy menyu / Главное меню', (user.phone ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx)) as any);
+        // auto-join pending invite if exists
+        const pending = (ctx.session as any).pendingInviteToken as string | undefined;
+        if (pending) {
+          const { tryJoinByInvite } = await import('../services/invite');
+          const team = await tryJoinByInvite(prisma, pending, user.id);
+          (ctx.session as any).pendingInviteToken = undefined;
+          if (team) {
+            await ctx.reply(`✅ Siz ${team.name} jamoasiga qo‘shildingiz!`);
+            const cap = await prisma.user.findUnique({ where: { id: team.captainId } });
+            if (cap?.telegramId) { try { await ctx.telegram.sendMessage(cap.telegramId, `👤 ${user.firstName} jamoangizga qo‘shildi.`); } catch {} }
+          }
+        }
         return ctx.scene.leave();
       } catch (e) {
         console.error('login error', e);

@@ -61,17 +61,20 @@ bot.start(async (ctx) => {
   const arg = (ctx.message as any)?.text?.split(' ').slice(1).join(' ');
   if (arg && arg.startsWith('join_')) {
     const token = arg.replace(/^join_/, '');
-    const { tryJoinByInvite } = await import('./services/invite');
-    const team = await tryJoinByInvite(prisma, token, (ctx.state as any).userId);
-    if (team) {
-      await ctx.reply(`✅ Siz ${team.name} jamoasiga qo‘shildingiz!`);
-      // Notify captain
-      const cap = await prisma.user.findUnique({ where: { id: team.captainId } });
-      if (cap?.telegramId) {
-        try { await ctx.telegram.sendMessage(cap.telegramId, `👤 ${user?.firstName || ''} jamoangizga qo‘shildi.`); } catch {}
+    if (isAuthenticated) {
+      const { tryJoinByInvite } = await import('./services/invite');
+      const team = await tryJoinByInvite(prisma, token, (ctx.state as any).userId);
+      if (team) {
+        await ctx.reply(`✅ Siz ${team.name} jamoasiga qo‘shildingiz!`);
+        const cap = await prisma.user.findUnique({ where: { id: team.captainId } });
+        if (cap?.telegramId) { try { await ctx.telegram.sendMessage(cap.telegramId, `👤 ${user?.firstName || ''} jamoangizga qo‘shildi.`); } catch {} }
+      } else {
+        await ctx.reply('Taklif havolasi eskirgan yoki noto‘g‘ri.');
       }
     } else {
-      await ctx.reply('Taklif havolasi eskirgan yoki noto‘g‘ri.');
+      // store pending invite and ask to login/register
+      (ctx.session as any).pendingInviteToken = token;
+      await ctx.reply('🔗 Taklif qabul qilindi. Iltimos, avval tizimga kiring yoki ro‘yxatdan o‘ting.');
     }
   }
   // @ts-ignore
