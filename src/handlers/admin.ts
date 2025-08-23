@@ -138,6 +138,12 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     await ctx.scene.enter('admin:sessions');
   });
 
+  // Open session view from anywhere (for Back buttons)
+  bot.action(/sess_open_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    await ctx.scene.enter('admin:sessionView', { sessionId: (ctx.match as any)[1] });
+  });
+
   bot.action('admin_demo_seed', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     const { sessionId } = await createDemoSessionWithTeams(prisma);

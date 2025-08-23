@@ -15,8 +15,10 @@ export function sessionViewScene(prisma: PrismaClient) {
       const header = `🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}  [${s.status}]`;
       const table = s.teams.map((t: any) => `${t.team.name}: ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`).join('\n') || 'Hali jamoalar yo‘q';
       const actions: any[] = [];
-      actions.push([{ text: s.status !== 'STARTED' ? '▶️ Start' : '⏹ Stop', callback_data: s.status !== 'STARTED' ? `sess_start_${s.id}` : `sess_stop_${s.id}` }]);
-      if (s.status === 'STARTED') {
+      if (s.status === 'PLANNED') {
+        actions.push([{ text: '▶️ Start', callback_data: `sess_start_${s.id}` }]);
+      } else if (s.status === 'STARTED') {
+        actions.push([{ text: '⏹ Stop', callback_data: `sess_stop_${s.id}` }]);
         actions.push([{ text: '➕ Match qo‘shish', callback_data: `sess_add_match_${s.id}` }]);
         actions.push([{ text: '📜 Matches', callback_data: `sess_matches_${s.id}` }]);
         actions.push([{ text: '📊 Statistika kiritish', callback_data: `sess_stats_entry_${s.id}` }]);
