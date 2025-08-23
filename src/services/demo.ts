@@ -44,7 +44,6 @@ export async function createDemoSessionWithTeams(prisma: PrismaClient) {
   for (const t of [t1, t2, t3, t4]) {
     await (prisma as any).sessionTeam.create({ data: { sessionId: session.id, teamId: t.id } });
   }
-  await prisma.match.create({ data: { sessionId: session.id, homeTeamId: t1.id, awayTeamId: t2.id, dateTime: startAt, location: 'Session' } as any });
-  await prisma.match.create({ data: { sessionId: session.id, homeTeamId: t3.id, awayTeamId: t4.id, dateTime: new Date(startAt.getTime() + 30 * 60 * 1000), location: 'Session' } as any });
+  // Do not auto-create matches; admin will add matches manually
   return { sessionId: session.id };
 }

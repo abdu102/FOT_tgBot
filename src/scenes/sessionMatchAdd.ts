@@ -37,7 +37,8 @@ export function matchAddScene(prisma: PrismaClient) {
     const awayId = st.teamIds[awayIdx];
     await prisma.match.create({ data: { sessionId: st.sid, homeTeamId: homeId, awayTeamId: awayId, dateTime: new Date(), location: 'Session' } as any });
     try { await ctx.answerCbQuery('Match qo‘shildi'); } catch {}
-    await ctx.scene.enter('admin:sessionView', { sessionId: st.sid });
+    try { await ctx.scene.enter('admin:sessionView', { sessionId: st.sid }); } catch {}
+    await ctx.reply('Match qo‘shildi', { reply_markup: { inline_keyboard: [[{ text: '⬅️ Back', callback_data: `sess_open_${st.sid}` }]] } } as any);
   });
 
   return scene;
