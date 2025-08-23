@@ -5,7 +5,7 @@
     "buildCommand": "rm -rf node_modules/.cache || true && npm install --no-fund --no-audit && npm run build"
   },
   "deploy": {
-    "startCommand": "npx prisma migrate deploy && node dist/index.js",
+    "startCommand": "node dist/index.js",
     "healthcheckPath": "/health",
     "restartPolicyType": "ON_FAILURE"
   }
