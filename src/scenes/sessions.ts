@@ -97,23 +97,32 @@ export function sessionsScene(prisma: PrismaClient) {
       return;
     }
     if (sess.sessCreateDay && sess.sessCreateStart && !sess.sessCreateType) {
-      const start = `${sess.sessCreateDay}T${sess.sessCreateStart}:00`;
       const end = `${sess.sessCreateDay}T${(ctx.message as any).text.trim()}:00`;
       sess.sessCreateEnd = end;
-      await ctx.reply('Turi? (5v5 / 6v6)');
-      return;
-    }
-    if (sess.sessCreateDay && sess.sessCreateStart && sess.sessCreateEnd && !sess.sessCreateDone) {
-      const start = `${sess.sessCreateDay}T${sess.sessCreateStart}:00`;
-      const end = sess.sessCreateEnd as string;
-      const tRaw = String((ctx.message as any).text || '').toLowerCase();
-      const type = tRaw.includes('6') ? 'SIX_V_SIX' : 'FIVE_V_FIVE';
-      const s = await (prisma as any).session.create({ data: { startAt: new Date(start), endAt: new Date(end), type } });
-      sess.sessCreateDone = true; sess.sessCreateDay = undefined; sess.sessCreateStart = undefined; sess.sessCreateEnd = undefined; sess.sessCreateType = undefined;
-      await ctx.reply('✅ Sessiya yaratildi', { reply_markup: { inline_keyboard: [[{ text: 'Ochil', callback_data: `sess_open_${s.id}` }]] } } as any);
+      const kb = { inline_keyboard: [[
+        { text: '5v5', callback_data: 'sess_type_5' },
+        { text: '6v6', callback_data: 'sess_type_6' }
+      ]] };
+      await ctx.reply('Turi? (5v5 / 6v6)', { reply_markup: kb } as any);
       return;
     }
     return next();
+  });
+
+  (scene as any).action?.(/sess_type_(5|6)/, async (ctx: any) => {
+    const t = (ctx.match as any)[1];
+    const sess: any = ctx.session || {};
+    if (!sess.sessCreateDay || !sess.sessCreateStart || !sess.sessCreateEnd) return ctx.answerCbQuery();
+    const start = `${sess.sessCreateDay}T${sess.sessCreateStart}:00`;
+    const type = t === '6' ? 'SIX_V_SIX' : 'FIVE_V_FIVE';
+    const s = await (prisma as any).session.create({ data: { startAt: new Date(start), endAt: new Date(sess.sessCreateEnd), type } });
+    sess.sessCreateDone = true; sess.sessCreateDay = undefined; sess.sessCreateStart = undefined; sess.sessCreateEnd = undefined; sess.sessCreateType = undefined;
+    await ctx.answerCbQuery('Yaratildi');
+    await ctx.reply('✅ Sessiya yaratildi', { reply_markup: { inline_keyboard: [[{ text: 'Ochil', callback_data: `sess_open_${s.id}` }]] } } as any);
+  });
+
+  (scene as any).action?.('sess_open_back', async (ctx: any) => {
+    await ctx.scene.reenter();
   });
 
   (scene as any).action?.(/sess_open_(.*)/, async (ctx: any) => {

@@ -4,6 +4,8 @@ import { autoFormTeams } from '../services/autoFormation';
 
 export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   const sendAdminPanel = async (ctx: any) => {
+    // Remove reply keyboard (login/registration buttons)
+    try { await ctx.reply(' ', { reply_markup: { remove_keyboard: true } } as any); } catch {}
     await ctx.reply('Admin panel', {
       reply_markup: {
         inline_keyboard: [
