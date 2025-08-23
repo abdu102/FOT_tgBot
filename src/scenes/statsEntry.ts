@@ -10,22 +10,22 @@ export function statsEntryScene(prisma: PrismaClient) {
         await ctx.reply('Faqat admin / Только админ');
         return ctx.scene.leave();
       }
-      await ctx.reply('Match ID?');
+      await ctx.reply('Match ID? (yoki /cancel)');
       return ctx.wizard.next();
     },
     async (ctx) => {
       (ctx.wizard.state as any).matchId = (ctx.message as any)?.text?.trim();
-      await ctx.reply('User ID?');
+      await ctx.reply('User ID? (o‘yinchi)');
       return ctx.wizard.next();
     },
     async (ctx) => {
       (ctx.wizard.state as any).userId = (ctx.message as any)?.text?.trim();
-      await ctx.reply('Goals?');
+      await ctx.reply('Goals? (0..)');
       return ctx.wizard.next();
     },
     async (ctx) => {
       (ctx.wizard.state as any).goals = parseInt((ctx.message as any)?.text?.trim());
-      await ctx.reply('Assists?');
+      await ctx.reply('Assists? (0..)');
       return ctx.wizard.next();
     },
     async (ctx) => {

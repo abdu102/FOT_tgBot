@@ -64,6 +64,10 @@ model Match {
   description   String?
   pricePerUser  Int             @default(40000)
   capacityPerTeam Int           @default(7)
+  winnerTeamId  String?
+  winnerTeam    Team?           @relation("MatchWinnerTeam", fields: [winnerTeamId], references: [id])
+  manOfTheMatchUserId String?
+  manOfTheMatch User?           @relation("MatchMoMUser", fields: [manOfTheMatchUserId], references: [id])
   registrations Registration[]
   stats         MatchStat[]
   createdAt     DateTime        @default(now())

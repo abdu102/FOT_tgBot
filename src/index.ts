@@ -57,6 +57,7 @@ bot.start(async (ctx) => {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   const isAuthenticated = Boolean(user?.isActive);
   const hasAccount = Boolean(user?.username || user?.phone);
+  const isAdmin = Boolean((ctx.state as any).isAdmin);
   // Handle invite deep link: /start join_<token>
   const arg = (ctx.message as any)?.text?.split(' ').slice(1).join(' ');
   if (arg && arg.startsWith('join_')) {
@@ -91,6 +92,11 @@ bot.start(async (ctx) => {
     ctx.i18n.t('start.greet', { name }),
     isAuthenticated ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx, { showRegister: !hasAccount })
   );
+  if (isAdmin) {
+    await ctx.reply('🛡 Admin detected', {
+      reply_markup: { inline_keyboard: [[{ text: '📋 Open admin panel', callback_data: 'open_admin_panel' }]] },
+    } as any);
+  }
 });
 
 languageHandlers(bot, prisma);

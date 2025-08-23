@@ -3,8 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import { autoFormTeams } from '../services/autoFormation';
 
 export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
-  bot.command('admin', async (ctx) => {
-    if (!(ctx.state as any).isAdmin) return;
+  const sendAdminPanel = async (ctx: any) => {
     await ctx.reply('Admin panel', {
       reply_markup: {
         inline_keyboard: [
@@ -13,9 +12,20 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
           [{ text: '✅ Tasdiqlash', callback_data: 'admin_approve' }],
           [{ text: '🤖 Auto-formation', callback_data: 'admin_autoform' }],
           [{ text: '📊 Statistika kiritish', callback_data: 'admin_stats' }],
+          [{ text: '🏆 Winner & MoM', callback_data: 'admin_winners' }],
         ],
       },
     } as any);
+  };
+
+  bot.command('admin', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    await sendAdminPanel(ctx);
+  });
+
+  bot.action('open_admin_panel', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    await sendAdminPanel(ctx);
   });
 
   bot.action('admin_create_match', async (ctx) => {
@@ -77,6 +87,11 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.action('admin_stats', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     await ctx.scene.enter('admin:stats');
+  });
+
+  bot.action('admin_winners', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    await ctx.scene.enter('admin:winners');
   });
 }
 

@@ -14,7 +14,12 @@ export function createMatchScene(prisma: PrismaClient) {
     },
     async (ctx) => {
       (ctx.wizard.state as any).dateTime = (ctx.message as any)?.text?.trim();
-      await ctx.reply('Manzil / Локация');
+      await ctx.reply('Stadion nomi / Название стадиона');
+      return ctx.wizard.next();
+    },
+    async (ctx) => {
+      (ctx.wizard.state as any).stadium = (ctx.message as any)?.text?.trim();
+      await ctx.reply('Joy (manzil) / Место (локация)');
       return ctx.wizard.next();
     },
     async (ctx) => {
@@ -30,12 +35,13 @@ export function createMatchScene(prisma: PrismaClient) {
     async (ctx) => {
       const capacity = parseInt((ctx.message as any)?.text?.trim());
       const dt = (ctx.wizard.state as any).dateTime as string;
+      const stadium = (ctx.wizard.state as any).stadium as string;
       const location = (ctx.wizard.state as any).location as string;
       const price = (ctx.wizard.state as any).price as number;
       await prisma.match.create({
         data: {
           dateTime: new Date(dt.replace(' ', 'T') + ':00'),
-          location,
+          location: stadium ? `${stadium} — ${location}` : location,
           pricePerUser: isNaN(price) ? 40000 : price,
           capacityPerTeam: isNaN(capacity) ? 7 : capacity,
         },
