@@ -84,9 +84,13 @@ async function startBot() {
   if (WEBHOOK_URL) {
     const path = `/telegraf/${BOT_TOKEN}`;
     const full = `${WEBHOOK_URL.replace(/\/$/, '')}${path}`;
-    await bot.telegram.setWebhook(full, { drop_pending_updates: true });
     app.use(bot.webhookCallback(path));
     app.listen(port, () => console.log(`Webhook server on :${port} url=${full}`));
+    try {
+      await bot.telegram.setWebhook(full, { drop_pending_updates: true });
+    } catch (err) {
+      console.error('setWebhook failed, running server without webhook:', err);
+    }
   } else {
     try {
       await bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
