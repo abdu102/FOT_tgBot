@@ -2,6 +2,7 @@ import { Scenes, Markup } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { linkTelegramUserByPhone } from '../services/linkByPhone';
 import { buildMainKeyboard } from '../keyboards/main';
+import { tryJoinByInvite } from '../services/invite';
 
 export function onboardingIndividualScene(prisma: PrismaClient) {
   const scene = new Scenes.WizardScene<Scenes.WizardContext>(
@@ -113,6 +114,17 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
       await ctx.reply('✅ Ro‘yxatdan o‘tish yakunlandi! / Регистрация завершена!', Markup.removeKeyboard());
       await ctx.reply('📋 Asosiy menyu / Главное меню', buildMainKeyboard(ctx));
       (ctx.state as any).isAuthenticated = true;
+      // Auto-join pending invite if exists
+      const pending = (ctx.session as any).pendingInviteToken as string | undefined;
+      if (pending) {
+        const team = await tryJoinByInvite(prisma, pending, userId);
+        (ctx.session as any).pendingInviteToken = undefined;
+        if (team) {
+          await ctx.reply(`✅ Siz ${team.name} jamoasiga qo‘shildingiz!`);
+          const cap = await prisma.user.findUnique({ where: { id: team.captainId } });
+          if (cap?.telegramId) { try { await ctx.telegram.sendMessage(cap.telegramId, `👤 ${(ctx.wizard.state as any).name} jamoangizga qo‘shildi.`); } catch {} }
+        }
+      }
       return ctx.scene.leave();
     },
   );

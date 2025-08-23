@@ -20,6 +20,8 @@ export function teamCreateScene(prisma: PrismaClient) {
       let team = await prisma.team.findFirst({ where: { captainId: userId } });
       if (team) team = await prisma.team.update({ where: { id: team.id }, data: { name } });
       else team = await prisma.team.create({ data: { name, captainId: userId } });
+      // Ensure captain is a member
+      await prisma.teamMember.upsert({ where: { teamId_userId: { teamId: team.id, userId } }, update: {}, create: { teamId: team.id, userId, role: 'captain' } });
       const { token, expires } = await generateTeamInvite(prisma, team.id);
       const url = buildInviteDeepLink(token);
       await ctx.reply('✅ Team created.', Markup.removeKeyboard());
