@@ -16,6 +16,7 @@ export function teamCreateScene(prisma: PrismaClient) {
       await ctx.reply('A’zolarni qo‘shasizmi? / Добавить участников?', Markup.inlineKeyboard([
         [Markup.button.callback('➕ Qo‘shish', 'team_add_member')],
         [Markup.button.callback('✅ Yakunlash', 'team_finish')],
+        [Markup.button.callback('⬅️ Menyuga qaytish', 'team_back_menu')],
       ]));
       return ctx.wizard.next();
     },
@@ -28,6 +29,10 @@ export function teamCreateScene(prisma: PrismaClient) {
       }
       if (data === 'team_finish') {
         return ctx.wizard.selectStep(6);
+      }
+      if (data === 'team_back_menu') {
+        await ctx.reply('Menyuga qaytdingiz / Возврат в меню');
+        return ctx.scene.leave();
       }
     },
     // Step 3: member name
@@ -63,6 +68,7 @@ export function teamCreateScene(prisma: PrismaClient) {
       await ctx.reply('Yana a’zo qo‘shasizmi?', Markup.inlineKeyboard([
         [Markup.button.callback('➕ Qo‘shish', 'team_add_member')],
         [Markup.button.callback('✅ Yakunlash', 'team_finish')],
+        [Markup.button.callback('⬅️ Menyuga qaytish', 'team_back_menu')],
       ]));
       return ctx.wizard.selectStep(2);
     },
@@ -71,13 +77,19 @@ export function teamCreateScene(prisma: PrismaClient) {
       const userId = (ctx.state as any).userId as string;
       const name = (ctx.wizard.state as any).teamName as string;
       const members = (ctx.wizard.state as any).members as MemberDraft[];
-      const team = await prisma.team.create({ data: { name, captainId: userId } });
+      // Ensure one team per captain: find or create
+      let team = await prisma.team.findFirst({ where: { captainId: userId } });
+      if (team) {
+        team = await prisma.team.update({ where: { id: team.id }, data: { name } });
+      } else {
+        team = await prisma.team.create({ data: { name, captainId: userId } });
+      }
       // add captain
       await prisma.teamMember.create({ data: { teamId: team.id, userId, role: 'captain' } });
       for (const m of members) {
         let u = m.phone ? await prisma.user.findUnique({ where: { phone: m.phone } }).catch(() => null) : null;
         if (!u) {
-          u = await prisma.user.create({ data: { telegramId: `unlinked_${Date.now()}_${Math.random().toString(36).slice(2)}`, firstName: m.name, phone: m.phone, age: m.age || null } });
+          u = await prisma.user.create({ data: { telegramId: `unlinked_${Date.now()}_${Math.random().toString(36).slice(2)}`, firstName: m.name.split(' ')[0], lastName: m.name.split(' ').slice(1).join(' ') || null, phone: m.phone, age: m.age || null } });
         }
         await prisma.teamMember.upsert({
           where: { teamId_userId: { teamId: team.id, userId: u.id } },
@@ -85,13 +97,16 @@ export function teamCreateScene(prisma: PrismaClient) {
           create: { teamId: team.id, userId: u.id, role: 'player' },
         });
       }
-      await ctx.reply('✅ Jamoa yaratildi va a’zolar qo‘shildi! / Команда создана и участники добавлены!');
+      const count = (await prisma.teamMember.count({ where: { teamId: team.id } })) - 1; // exclude captain
+      const warn = count < 6 ? '\n⚠️ Kamida 6 o‘yinchi talab etiladi / Минимум 6 игроков' : '';
+      await ctx.reply(`✅ Jamoa saqlandi. A’zolar: ${count}${warn}`, Markup.removeKeyboard());
       return ctx.scene.leave();
     }
   );
 
   scene.action('team_add_member', async (ctx) => ctx.wizard.selectStep(3));
   scene.action('team_finish', async (ctx) => ctx.wizard.selectStep(6));
+  scene.action('team_back_menu', async (ctx) => ctx.scene.leave());
 
   return scene;
 }
