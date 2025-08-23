@@ -2,6 +2,7 @@ import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { autoFormTeams } from '../services/autoFormation';
 import { createDemoSessionWithTeams } from '../services/demo';
+import { computeSessionTable, getSessionTopPlayers } from '../services/session';
 
 export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   const sendAdminPanel = async (ctx: any) => {
@@ -141,6 +142,81 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     if (!(ctx.state as any).isAdmin) return;
     const { sessionId } = await createDemoSessionWithTeams(prisma);
     await ctx.reply(`✅ Demo session created: ${sessionId}`);
+  });
+
+  // Global fallbacks for session view actions (in case scene is not active)
+  bot.action(/sess_start_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const id = (ctx.match as any)[1];
+    try {
+      const { autoFormSessionTeams } = await import('../services/sessionFormation');
+      await autoFormSessionTeams(prisma as any, id);
+      await (prisma as any).session.update({ where: { id }, data: { status: 'STARTED' as any } });
+      await ctx.answerCbQuery('Started');
+      await ctx.scene.enter('admin:sessionView', { sessionId: id });
+    } catch (e) {
+      await ctx.answerCbQuery('Error');
+    }
+  });
+
+  bot.action(/sess_stop_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const id = (ctx.match as any)[1];
+    await (prisma as any).session.update({ where: { id }, data: { status: 'FINISHED' as any } });
+    const table = await computeSessionTable(prisma, id);
+    const lines = table.map((t: any, i: number) => `${i+1}. ${t.team.name} — ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`).join('\n') || '—';
+    await ctx.answerCbQuery('Stopped');
+    await ctx.reply(`🏁 Sessiya yakunlandi\n\n${lines}`, { reply_markup: { inline_keyboard: [[{ text: '📊 Statistics', callback_data: `sess_stats_${id}` }], [{ text: '🏅 MoM', callback_data: `sess_mom_${id}` }]] } } as any);
+  });
+
+  bot.action(/sess_add_match_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    await ctx.scene.enter('admin:sessionMatchAdd', { sessionId: (ctx.match as any)[1] });
+  });
+
+  bot.action(/sess_stats_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const id = (ctx.match as any)[1];
+    const { topScorers, topAssists } = await getSessionTopPlayers(prisma, id);
+    const sLines = topScorers.map((p: any, i: number) => `${i+1}. ${p.name} — ⚽ ${p.goals}`).join('\n') || '—';
+    const aLines = topAssists.map((p: any, i: number) => `${i+1}. ${p.name} — 🅰️ ${p.assists}`).join('\n') || '—';
+    await ctx.answerCbQuery();
+    await ctx.reply(`Top Scorers:\n${sLines}\n\nTop Assists:\n${aLines}`);
+  });
+
+  bot.action(/sess_stats_entry_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const id = (ctx.match as any)[1];
+    const s = await (prisma as any).session.findUnique({ where: { id } });
+    if (!s || (s as any).status !== 'STARTED') return ctx.answerCbQuery('Session not started');
+    await ctx.answerCbQuery();
+    await ctx.scene.enter('admin:sessionMatchStats', { sessionId: id });
+  });
+
+  bot.action(/sess_mom_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const id = (ctx.match as any)[1];
+    const st = await (prisma as any).session.findUnique({ where: { id }, include: { teams: { include: { team: true } } } });
+    if (!st) return;
+    const rows = st.teams.map((t: any) => [{ text: t.team.name, callback_data: `sess_mom_team_${id}_${t.teamId}` }]);
+    await ctx.answerCbQuery();
+    await ctx.reply('Jamoani tanlang', { reply_markup: { inline_keyboard: rows } } as any);
+  });
+  bot.action(/sess_mom_team_(.*)_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const sid = (ctx.match as any)[1];
+    const teamId = (ctx.match as any)[2];
+    const members = await (prisma as any).teamMember.findMany({ where: { teamId }, include: { user: true } });
+    const rows = members.map((tm: any) => [{ text: tm.user.firstName, callback_data: `sess_mom_pick_${sid}_${tm.userId}` }]);
+    await ctx.answerCbQuery();
+    await ctx.reply('O‘yinchini tanlang', { reply_markup: { inline_keyboard: rows } } as any);
+  });
+  bot.action(/sess_mom_pick_(.*)_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const sid = (ctx.match as any)[1];
+    const userId = (ctx.match as any)[2];
+    await (prisma as any).session.update({ where: { id: sid }, data: { manOfTheSessionUserId: userId } });
+    await ctx.answerCbQuery('MoM belgilandi');
   });
 }
 
