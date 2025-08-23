@@ -19,6 +19,7 @@ export function ensureUserMiddleware(prisma: PrismaClient): MiddlewareFn<Context
         });
       }
       (ctx.state as any).userId = user.id;
+      (ctx.state as any).isRegistered = Boolean(user.phone);
       if (ctx.i18n && user.language) {
         // @ts-ignore telegraf-i18n typing
         ctx.i18n.locale(user.language);

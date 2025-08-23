@@ -27,8 +27,9 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
   });
 
   bot.hears(['⚽ Haftalik o‘yinlar', '⚽ Еженедельные матчи'], async (ctx) => {
+    const isRegistered = Boolean((ctx.state as any).isRegistered);
     const matches = await prisma.match.findMany({ orderBy: { dateTime: 'asc' }, take: 10 });
-    if (!matches.length) return ctx.reply('Hozircha yo‘q / Пока нет');
+    if (!matches.length) return ctx.reply('Hozircha yo‘q / Пока нет', buildMainKeyboard(ctx, { showRegister: !isRegistered }));
     for (const m of matches) {
       await ctx.reply(
         `📅 ${m.dateTime.toISOString().slice(0,16).replace('T',' ')}\n📍 ${m.location}\n💰 ${m.pricePerUser} UZS`,
@@ -60,10 +61,16 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     const userId = (ctx.state as any).userId as string;
     const u = await prisma.user.findUnique({ where: { id: userId }, include: { stats: true } });
     const ps = u?.stats?.[0];
-    await ctx.reply(
-      `👤 ${u?.firstName || ''}\n📞 ${u?.phone || '-'}\n⭐️ ${ps?.rating ?? 0} | ⚽ ${ps?.goals ?? 0} | 🅰️ ${ps?.assists ?? 0} | 🏆 ${ps?.wins ?? 0}`,
-      buildMainKeyboard(ctx)
-    );
+    await ctx.reply(`👤 ${u?.firstName || ''}\n📞 ${u?.phone || '-'}\n⭐️ ${ps?.rating ?? 0} | ⚽ ${ps?.goals ?? 0} | 🅰️ ${ps?.assists ?? 0} | 🏆 ${ps?.wins ?? 0}`);
+    await ctx.reply('⚙️ Sozlamalar / Настройки', {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '✏️ Ma’lumotni o‘zgartirish / Изменить данные', callback_data: 'profile_edit' }],
+          [{ text: '🔐 Parolni o‘zgartirish / Сменить пароль', callback_data: 'profile_password' }],
+          [{ text: '🚪 Chiqish / Выйти', callback_data: 'profile_logout' }],
+        ],
+      },
+    } as any);
   });
 }
 

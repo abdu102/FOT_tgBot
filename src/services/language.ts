@@ -12,6 +12,10 @@ export function languageHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: Pr
     if (userId) {
       await prisma.user.update({ where: { id: userId }, data: { language: next } });
     }
-    await ctx.reply(next === 'uz' ? '🌐 Til UZ ga o‘zgardi' : '🌐 Язык изменён на RU', buildMainKeyboard(ctx));
+    const isRegistered = Boolean((ctx.state as any).isRegistered);
+    await ctx.reply(
+      next === 'uz' ? '🌐 Til UZ ga o‘zgardi' : '🌐 Язык изменён на RU',
+      buildMainKeyboard(ctx, { showRegister: !isRegistered })
+    );
   });
 }
