@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import I18n from 'telegraf-i18n';
 import path from 'path';
 import fs from 'fs';
-import http from 'http';
+import express from 'express';
 import { buildMainKeyboard, buildAuthKeyboard } from './keyboards/main';
 import { registerScenes } from './scenes';
 import { authMiddleware } from './middlewares/auth';
@@ -72,21 +72,30 @@ bot.catch((err, ctx) => {
 setupCronJobs(bot.telegram, prisma);
 initAdmin(prisma);
 
-bot.launch().then(() => {
-  console.log('Bot launched');
-});
-
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
-
-// Minimal HTTP server for Railway health checks
 const port = parseInt(process.env.PORT || '3000', 10);
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('ok');
-});
-server.listen(port, () => {
-  console.log(`Health server listening on :${port}`);
+const WEBHOOK_URL = process.env.WEBHOOK_URL; // e.g. https://your-domain/telegram
+
+async function startBot() {
+  if (WEBHOOK_URL) {
+    const app = express();
+    const path = `/telegraf/${BOT_TOKEN}`;
+    await bot.telegram.setWebhook(`${WEBHOOK_URL}${path}`);
+    app.use(express.json());
+    app.use(bot.webhookCallback(path));
+    app.get('/health', (_req: express.Request, res: express.Response) => res.status(200).send('ok'));
+    app.listen(port, () => console.log(`Webhook server on :${port}`));
+  } else {
+    await bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
+    await bot.launch({ dropPendingUpdates: true });
+    console.log('Bot launched with polling');
+    process.once('SIGINT', () => bot.stop('SIGINT'));
+    process.once('SIGTERM', () => bot.stop('SIGTERM'));
+  }
+}
+
+startBot().catch((e) => {
+  console.error('Bot start error', e);
+  process.exit(1);
 });
 
 
