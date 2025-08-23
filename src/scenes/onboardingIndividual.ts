@@ -114,11 +114,17 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
       await ctx.reply('✅ Ro‘yxatdan o‘tish yakunlandi! / Регистрация завершена!', Markup.removeKeyboard());
       await ctx.reply('📋 Asosiy menyu / Главное меню', buildMainKeyboard(ctx));
       (ctx.state as any).isAuthenticated = true;
-      // Auto-join pending invite if exists
-      const pending = (ctx.session as any).pendingInviteToken as string | undefined;
-      if (pending) {
-        const team = await tryJoinByInvite(prisma, pending, userId);
+      // Auto-join pending invite if exists (session or persisted on user)
+      const sessionPending = (ctx.session as any).pendingInviteToken as string | undefined;
+      let pendingToken: string | undefined = sessionPending;
+      if (!pendingToken) {
+        const fresh = await prisma.user.findUnique({ where: { id: userId } });
+        pendingToken = fresh?.pendingInviteToken || undefined;
+      }
+      if (pendingToken) {
+        const team = await tryJoinByInvite(prisma, pendingToken, userId);
         (ctx.session as any).pendingInviteToken = undefined;
+        await prisma.user.update({ where: { id: userId }, data: { pendingInviteToken: null } }).catch(() => {});
         if (team) {
           await ctx.reply(`✅ Siz ${team.name} jamoasiga qo‘shildingiz!`);
           const cap = await prisma.user.findUnique({ where: { id: team.captainId } });
