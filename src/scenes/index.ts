@@ -6,7 +6,6 @@ import { createMatchScene } from './matchCreate';
 import { statsEntryScene } from './statsEntry';
 import { loginScene } from './login';
 import { teamCreateScene } from './teamCreate';
-import { teamAddMemberScene } from './teamAddMember';
 
 export function registerScenes(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   const stage = new Scenes.Stage<Scenes.WizardContext>([
@@ -16,7 +15,6 @@ export function registerScenes(bot: Telegraf<Scenes.WizardContext>, prisma: Pris
     statsEntryScene(prisma),
     loginScene(prisma),
     teamCreateScene(prisma),
-    teamAddMemberScene(prisma),
   ]);
   bot.use(stage.middleware());
 }
