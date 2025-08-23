@@ -1,6 +1,6 @@
 import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
-import { buildMainKeyboard } from '../keyboards/main';
+import { buildMainKeyboard, buildAuthKeyboard } from '../keyboards/main';
 import bcrypt from 'bcryptjs';
 
 export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
@@ -30,7 +30,7 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
   bot.hears(['⚽ Haftalik o‘yinlar', '⚽ Еженедельные матчи'], async (ctx) => {
     const isRegistered = Boolean((ctx.state as any).isRegistered);
     const matches = await prisma.match.findMany({ orderBy: { dateTime: 'asc' }, take: 10 });
-    if (!matches.length) return ctx.reply('Hozircha yo‘q / Пока нет', buildMainKeyboard(ctx, { showRegister: !isRegistered }));
+    if (!matches.length) return ctx.reply('Hozircha yo‘q / Пока нет', isRegistered ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx));
     for (const m of matches) {
       await ctx.reply(
         `📅 ${m.dateTime.toISOString().slice(0,16).replace('T',' ')}\n📍 ${m.location}\n💰 ${m.pricePerUser} UZS`,
@@ -79,7 +79,8 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     const userId = (ctx.state as any).userId as string;
     await prisma.user.update({ where: { id: userId }, data: { isActive: false, phone: null } });
     (ctx.state as any).isRegistered = false;
-    await ctx.reply('✅ Tizimdan chiqdingiz / Вы вышли из системы', buildMainKeyboard(ctx, { showRegister: true, showLogin: true }));
+    try { await ctx.telegram.deleteMessage(ctx.chat!.id, (ctx.callbackQuery as any).message.message_id); } catch {}
+    await ctx.reply('✅ Tizimdan chiqdingiz / Вы вышли из системы', buildAuthKeyboard(ctx));
   });
 
   // Change password flow (simple inline asks)
@@ -130,7 +131,8 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
       (ctx.state as any).userId = user.id;
       (ctx.state as any).isRegistered = Boolean(user.phone);
       sess.awaitingLoginPassword = false;
-      return ctx.reply('✅ Kirish muvaffaqiyatli / Вход выполнен', buildMainKeyboard(ctx, { showRegister: !user.phone, showLogin: false }));
+      await ctx.reply('✅ Kirish muvaffaqiyatli / Вход выполнен');
+      return ctx.reply('📋 Asosiy menyu / Главное меню', (user.phone ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx)) as any);
     }
     return next();
   });

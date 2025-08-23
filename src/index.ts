@@ -5,7 +5,7 @@ import I18n from 'telegraf-i18n';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
-import { buildMainKeyboard } from './keyboards/main';
+import { buildMainKeyboard, buildAuthKeyboard } from './keyboards/main';
 import { registerScenes } from './scenes';
 import { authMiddleware } from './middlewares/auth';
 import { ensureUserMiddleware } from './middlewares/ensureUser';
@@ -57,7 +57,10 @@ bot.start(async (ctx) => {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   const registered = Boolean(user?.phone);
   // @ts-ignore
-  await ctx.reply(ctx.i18n.t('start.greet', { name }), buildMainKeyboard(ctx, { showRegister: !registered }));
+  await ctx.reply(
+    ctx.i18n.t('start.greet', { name }),
+    registered ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx)
+  );
 });
 
 languageHandlers(bot, prisma);

@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { Telegraf, Scenes } from 'telegraf';
-import { buildMainKeyboard } from '../keyboards/main';
+import { buildMainKeyboard, buildAuthKeyboard } from '../keyboards/main';
 
 export function languageHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   bot.hears(['🌐 Til: UZ/RU', '🌐 Язык: UZ/RU'], async (ctx) => {
@@ -13,9 +13,6 @@ export function languageHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: Pr
       await prisma.user.update({ where: { id: userId }, data: { language: next } });
     }
     const isRegistered = Boolean((ctx.state as any).isRegistered);
-    await ctx.reply(
-      next === 'uz' ? '🌐 Til UZ ga o‘zgardi' : '🌐 Язык изменён на RU',
-      buildMainKeyboard(ctx, { showRegister: !isRegistered })
-    );
+    await ctx.reply(next === 'uz' ? '🌐 Til UZ ga o‘zgardi' : '🌐 Язык изменён на RU', isRegistered ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx));
   });
 }

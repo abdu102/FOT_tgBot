@@ -19,6 +19,12 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
     async (ctx) => {
       const age = parseInt((ctx.message as any)?.text?.trim());
       (ctx.wizard.state as any).age = isNaN(age) ? null : age;
+      await ctx.reply('🔐 Parol kiriting / Введите пароль (min 4)');
+      return ctx.wizard.next();
+    },
+    async (ctx) => {
+      const pass = (ctx.message as any)?.text?.trim();
+      (ctx.wizard.state as any).password = pass;
       await ctx.reply(
         '📞 Telefon raqamingizni yuboring / Отправьте номер телефона',
         Markup.keyboard([[Markup.button.contactRequest('📞 Share / Отправить')]]).resize().oneTime()
@@ -29,12 +35,15 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
       const msg: any = ctx.message;
       const phone: string | undefined = msg?.contact?.phone_number || msg?.text?.trim();
       const userId = (ctx.state as any).userId as string;
+      const bcrypt = (await import('bcryptjs')).default;
+      const hash = await bcrypt.hash((ctx.wizard.state as any).password || '0000', 10);
       await prisma.user.update({
         where: { id: userId },
         data: {
           firstName: (ctx.wizard.state as any).name,
           age: (ctx.wizard.state as any).age,
           phone,
+          passwordHash: hash,
         },
       });
       await linkTelegramUserByPhone(prisma, userId);
