@@ -8,6 +8,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
       reply_markup: {
         inline_keyboard: [
           [{ text: '➕ Match yaratish', callback_data: 'admin_create_match' }],
+          [{ text: '🗓️ Sessiyalar', callback_data: 'admin_sessions' }],
           [{ text: '🧾 Ro‘yxatlar', callback_data: 'admin_registrations' }],
           [{ text: '✅ Tasdiqlash', callback_data: 'admin_approve' }],
           [{ text: '🤖 Auto-formation', callback_data: 'admin_autoform' }],
@@ -92,6 +93,11 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.action('admin_winners', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     await ctx.scene.enter('admin:winners');
+  });
+
+  bot.action('admin_sessions', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    await ctx.scene.enter('admin:sessions');
   });
 }
 

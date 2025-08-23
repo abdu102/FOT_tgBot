@@ -5,6 +5,10 @@ import { onboardingTeamScene } from './onboardingTeam';
 import { createMatchScene } from './matchCreate';
 import { statsEntryScene } from './statsEntry';
 import { winnersScene } from './winners';
+import { sessionsScene } from './sessions';
+import { sessionViewScene } from './sessionView';
+import { matchAddScene } from './sessionMatchAdd';
+import { matchStatsScene } from './sessionMatchStats';
 import { loginScene } from './login';
 import { teamCreateScene } from './teamCreate';
 
@@ -15,6 +19,10 @@ export function registerScenes(bot: Telegraf<Scenes.WizardContext>, prisma: Pris
     createMatchScene(prisma),
     statsEntryScene(prisma),
     winnersScene(prisma),
+    sessionsScene(prisma),
+    sessionViewScene(prisma),
+    matchAddScene(prisma),
+    matchStatsScene(prisma),
     loginScene(prisma),
     teamCreateScene(prisma),
   ]);
