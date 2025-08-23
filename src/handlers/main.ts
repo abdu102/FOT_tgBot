@@ -104,37 +104,9 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     return next();
   });
 
-  // Login button
+  // Login button → scene
   bot.hears(['🔐 Kirish', '🔐 Войти'], async (ctx) => {
-    await ctx.reply('Login: username yoki ism yuboring / Отправьте username или имя');
-    (ctx.session as any).awaitingLoginName = true;
-  });
-
-  bot.on('text', async (ctx, next) => {
-    const sess: any = ctx.session || {};
-    if (sess.awaitingLoginName && !sess.awaitingLoginPassword) {
-      sess.loginName = (ctx.message as any).text.trim();
-      sess.awaitingLoginPassword = true;
-      sess.awaitingLoginName = false;
-      return ctx.reply('Parol yuboring / Отправьте пароль');
-    }
-    if (sess.awaitingLoginPassword) {
-      const name = (sess.loginName as string).trim();
-      const pass = (ctx.message as any).text.trim();
-      const user = await prisma.user.findFirst({ where: { OR: [{ username: name }, { firstName: name }], isActive: true } });
-      if (!user?.passwordHash || !(await bcrypt.compare(pass, user.passwordHash))) {
-        sess.awaitingLoginPassword = false;
-        return ctx.reply('Login yoki parol noto‘g‘ri / Неверные данные');
-      }
-      // Link current telegramId to this user
-      await prisma.user.update({ where: { id: user.id }, data: { telegramId: String(ctx.from?.id), isActive: true } });
-      (ctx.state as any).userId = user.id;
-      (ctx.state as any).isRegistered = Boolean(user.phone);
-      sess.awaitingLoginPassword = false;
-      await ctx.reply('✅ Kirish muvaffaqiyatli / Вход выполнен');
-      return ctx.reply('📋 Asosiy menyu / Главное меню', (user.phone ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx)) as any);
-    }
-    return next();
+    await ctx.scene.enter('auth:login');
   });
 }
 

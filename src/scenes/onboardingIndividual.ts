@@ -25,11 +25,31 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
     async (ctx) => {
       const age = parseInt((ctx.message as any)?.text?.trim());
       (ctx.wizard.state as any).age = isNaN(age) ? null : age;
+      await ctx.reply('👤 Username yarating / Придумайте username (unikal)');
+      return ctx.wizard.next();
+    },
+    async (ctx) => {
+      const username = (ctx.message as any)?.text?.trim();
+      if (!username || username.length < 3) {
+        await ctx.reply('Username juda qisqa, qayta yuboring');
+        return; // remain on same step
+      }
+      // check uniqueness
+      const existing = await prisma.user.findUnique({ where: { username } }).catch(() => null);
+      if (existing) {
+        await ctx.reply('Bu username band, boshqasini kiriting');
+        return; // stay
+      }
+      (ctx.wizard.state as any).username = username;
       await ctx.reply('🔐 Parol kiriting / Введите пароль (min 4)');
       return ctx.wizard.next();
     },
     async (ctx) => {
       const pass = (ctx.message as any)?.text?.trim();
+      if (!pass || pass.length < 4) {
+        await ctx.reply('Parol juda qisqa, qayta yuboring');
+        return;
+      }
       (ctx.wizard.state as any).password = pass;
       await ctx.reply(
         '📞 Telefon raqamingizni yuboring / Отправьте номер телефона',
@@ -44,17 +64,49 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
       const bcrypt = (await import('bcryptjs')).default;
       const hash = await bcrypt.hash((ctx.wizard.state as any).password || '0000', 10);
       const normalizedPhone = (phone || '').replace(/[^0-9+]/g, '');
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          firstName: (ctx.wizard.state as any).name,
-          lastName: (ctx.wizard.state as any).lastName,
-          age: (ctx.wizard.state as any).age,
-          phone: normalizedPhone || null,
-          passwordHash: hash,
-          isActive: true,
-        },
-      });
+      try {
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            firstName: (ctx.wizard.state as any).name,
+            lastName: (ctx.wizard.state as any).lastName,
+            age: (ctx.wizard.state as any).age,
+            username: (ctx.wizard.state as any).username,
+            phone: normalizedPhone || null,
+            passwordHash: hash,
+            isActive: true,
+          },
+        });
+      } catch (e: any) {
+        // Handle unique phone conflict by merging placeholder account
+        if (normalizedPhone) {
+          const placeholder = await prisma.user.findFirst({ where: { phone: normalizedPhone } });
+          if (placeholder && placeholder.id !== userId) {
+            const tms = await prisma.teamMember.findMany({ where: { userId: placeholder.id } });
+            for (const tm of tms) {
+              await prisma.teamMember.upsert({
+                where: { teamId_userId: { teamId: tm.teamId, userId } },
+                update: {},
+                create: { teamId: tm.teamId, userId, role: tm.role || 'player' },
+              });
+            }
+            await prisma.teamMember.deleteMany({ where: { userId: placeholder.id } });
+            await prisma.user.delete({ where: { id: placeholder.id } });
+            await prisma.user.update({
+              where: { id: userId },
+              data: {
+                firstName: (ctx.wizard.state as any).name,
+                lastName: (ctx.wizard.state as any).lastName,
+                age: (ctx.wizard.state as any).age,
+                username: (ctx.wizard.state as any).username,
+                phone: normalizedPhone,
+                passwordHash: hash,
+                isActive: true,
+              },
+            });
+          }
+        }
+      }
       await linkTelegramUserByPhone(prisma, userId);
       await ctx.reply('✅ Ro‘yxatdan o‘tish yakunlandi! / Регистрация завершена!', Markup.removeKeyboard());
       await ctx.reply('📋 Asosiy menyu / Главное меню', buildMainKeyboard(ctx));
