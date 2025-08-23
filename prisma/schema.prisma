@@ -37,6 +37,9 @@ model Team {
   captainId   String
   captain     User         @relation("TeamCaptain", fields: [captainId], references: [id])
   members     TeamMember[]
+  description String?
+  inviteToken String?   @unique
+  inviteExpiresAt DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   registrations Registration[]

@@ -1,5 +1,6 @@
 import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
+import { generateTeamInvite } from '../services/invite';
 
 export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   // Entry point from main menu
@@ -15,7 +16,7 @@ export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, pri
     const list = team.members.map((m, i) => `${i + 1}. ${m.user.firstName} ${m.user.lastName ?? ''} ${m.user.phone ?? ''} @${m.user.username ?? ''}`).join('\n');
     const warn = count < 6 ? '\n⚠️ Kamida 6 o‘yinchi bo‘lishi kerak / Минимум 6 игроков' : '';
     await ctx.reply(`👥 ${team.name}\nA’zolar: ${count}${warn}\n${list}`, {
-      reply_markup: { inline_keyboard: [[{ text: '➕ A’zo qo‘shish', callback_data: `team_add_more_${team.id}` }], [{ text: '⬅️ Menyuga qaytish', callback_data: 'back_menu' }]] },
+      reply_markup: { inline_keyboard: [[{ text: '🔗 Taklif havolasi', callback_data: `team_invite_${team.id}` }],[{ text: '➕ A’zo qo‘shish', callback_data: `team_add_more_${team.id}` }], [{ text: '⬅️ Menyuga qaytish', callback_data: 'back_menu' }]] },
     } as any);
   });
 
@@ -49,6 +50,14 @@ export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, pri
     const teamId = (ctx.match as any)[1] as string;
     (ctx.session as any).addMemberTeamId = teamId;
     await ctx.scene.enter('team:addMember');
+  });
+
+  bot.action(/team_invite_(.*)/, async (ctx) => {
+    const teamId = (ctx.match as any)[1] as string;
+    const inv = await generateTeamInvite(prisma, teamId);
+    const base = process.env.WEBHOOK_URL || process.env.RAILWAY_STATIC_URL || '';
+    const url = `${base?.replace(/\/$/, '')}/telegraf/${process.env.BOT_TOKEN}?start=join_${inv.token}`;
+    await ctx.reply(`🔗 Havola: ${url}\n⏳ Amal qilish muddati: ${inv.expires.toISOString().slice(0,16).replace('T',' ')}`);
   });
 }
 

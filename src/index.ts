@@ -57,6 +57,23 @@ bot.start(async (ctx) => {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   const isAuthenticated = Boolean(user?.isActive);
   const hasAccount = Boolean(user?.username || user?.phone);
+  // Handle invite deep link: /start join_<token>
+  const arg = (ctx.message as any)?.text?.split(' ').slice(1).join(' ');
+  if (arg && arg.startsWith('join_')) {
+    const token = arg.replace(/^join_/, '');
+    const { tryJoinByInvite } = await import('./services/invite');
+    const team = await tryJoinByInvite(prisma, token, (ctx.state as any).userId);
+    if (team) {
+      await ctx.reply(`✅ Siz ${team.name} jamoasiga qo‘shildingiz!`);
+      // Notify captain
+      const cap = await prisma.user.findUnique({ where: { id: team.captainId } });
+      if (cap?.telegramId) {
+        try { await ctx.telegram.sendMessage(cap.telegramId, `👤 ${user?.firstName || ''} jamoangizga qo‘shildi.`); } catch {}
+      }
+    } else {
+      await ctx.reply('Taklif havolasi eskirgan yoki noto‘g‘ri.');
+    }
+  }
   // @ts-ignore
   await ctx.reply(
     ctx.i18n.t('start.greet', { name }),
