@@ -9,15 +9,25 @@ export async function autoFormSessionTeams(prisma: PrismaClient, sessionId: stri
   if (!session) return { lockedTeams: [] as string[] };
   const teamSize = getTeamSizeByType((session as any).type);
 
-  // Approved team registrations
-  const teamRegs = await (prisma as any).sessionRegistration.findMany({ where: { sessionId, status: 'APPROVED', type: 'TEAM' }, include: { team: { include: { members: true } } } });
+  // Approved team registrations (optional if table exists)
+  let teamRegs: any[] = [];
+  try {
+    teamRegs = await (prisma as any).sessionRegistration.findMany({ where: { sessionId, status: 'APPROVED', type: 'TEAM' }, include: { team: { include: { members: true } } } });
+  } catch {
+    teamRegs = [];
+  }
   // Filter teams that meet minimum size requirement
   const eligibleTeamIds = teamRegs
     .filter((r: any) => (r.team?.members?.length || 0) >= teamSize)
     .map((r: any) => r.teamId as string);
 
-  // Approved singles
-  const singles = await (prisma as any).sessionRegistration.findMany({ where: { sessionId, status: 'APPROVED', type: 'INDIVIDUAL' } });
+  // Approved singles (optional)
+  let singles: any[] = [];
+  try {
+    singles = await (prisma as any).sessionRegistration.findMany({ where: { sessionId, status: 'APPROVED', type: 'INDIVIDUAL' } });
+  } catch {
+    singles = [];
+  }
   const singleUserIds = singles.map((r: any) => r.userId as string).filter(Boolean);
 
   const lockedTeams: string[] = [];

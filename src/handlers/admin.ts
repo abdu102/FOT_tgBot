@@ -152,10 +152,12 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
       const { autoFormSessionTeams } = await import('../services/sessionFormation');
       await autoFormSessionTeams(prisma as any, id);
       await (prisma as any).session.update({ where: { id }, data: { status: 'STARTED' as any } });
-      await ctx.answerCbQuery('Started');
-      await ctx.scene.enter('admin:sessionView', { sessionId: id });
+      try { await ctx.answerCbQuery('Started'); } catch {}
+      try { await ctx.scene.enter('admin:sessionView', { sessionId: id }); } catch {}
+      await ctx.reply('Session started');
     } catch (e) {
-      await ctx.answerCbQuery('Error');
+      try { await ctx.answerCbQuery('Error'); } catch {}
+      await ctx.reply('Error while starting session');
     }
   });
 
