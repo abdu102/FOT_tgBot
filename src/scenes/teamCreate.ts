@@ -26,6 +26,7 @@ export function teamCreateScene(prisma: PrismaClient) {
       await ctx.reply('✅ Team created.', Markup.removeKeyboard());
       await ctx.reply(`Share this invite link with your players:\n${url}\nExpires: ${expires.toISOString().slice(0,16).replace('T',' ')}`);
       await ctx.reply('You can always regenerate the link from 👥 Team → 🔗 Invite link.');
+      await ctx.reply('📋 Asosiy menyu', buildMainKeyboard(ctx));
       return ctx.scene.leave();
     }
   );
