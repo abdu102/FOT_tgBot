@@ -6,56 +6,45 @@ import bcrypt from 'bcryptjs';
 export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   bot.hears(['📝 Ro‘yxatdan o‘tish', '📝 Регистрация'], async (ctx) => {
     const u = await prisma.user.findUnique({ where: { id: (ctx.state as any).userId } });
-    if (u?.phone) {
-      return ctx.reply('Siz allaqachon ro‘yxatdan o‘tgansiz / Вы уже зарегистрированы');
+    if (u?.isActive) {
+      return ctx.reply('Siz allaqachon tizimdasiz / Вы уже авторизованы');
     }
-    // Ask which mode
-    await ctx.reply('Qaysi turda? / Как?', {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '👤 O‘yinchi / Игрок', callback_data: 'go_individual' }],
-          [{ text: '👥 Jamoa / Команда', callback_data: 'go_team' }],
-        ],
-      },
-    } as any);
+    await ctx.scene.enter('onboarding:individual');
   });
 
   bot.action('go_individual', async (ctx) => {
     await ctx.scene.enter('onboarding:individual');
   });
-  bot.action('go_team', async (ctx) => {
-    await ctx.scene.enter('onboarding:team');
-  });
+  // Removed team registration from onboarding entry; team creation will be under captain tools after login
 
   bot.hears(['⚽ Haftalik o‘yinlar', '⚽ Еженедельные матчи'], async (ctx) => {
     const isAuth = Boolean((ctx.state as any).isAuthenticated);
     const matches = await prisma.match.findMany({ orderBy: { dateTime: 'asc' }, take: 10 });
     if (!matches.length) return ctx.reply('Hozircha yo‘q / Пока нет', isAuth ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx));
     for (const m of matches) {
-      await ctx.reply(
-        `📅 ${m.dateTime.toISOString().slice(0,16).replace('T',' ')}\n📍 ${m.location}\n💰 ${m.pricePerUser} UZS`,
-        {
-          reply_markup: {
-            inline_keyboard: [[{ text: '✍️ Ro‘yxatga yozilish / Записаться', callback_data: `signup_${m.id}` }]],
-          },
-        } as any
-      );
+      const inline = [
+        [{ text: '✍️ Shaxsiy / Индивидуально', callback_data: `signup_ind_${m.id}` }],
+      ];
+      const team = await prisma.team.findFirst({ where: { captainId: (ctx.state as any).userId } });
+      if (team) inline.push([{ text: '👥 Jamoa bilan / Командой', callback_data: `signup_team_${m.id}` }]);
+      await ctx.reply(`📅 ${m.dateTime.toISOString().slice(0,16).replace('T',' ')}\n📍 ${m.location}\n💰 ${m.pricePerUser} UZS`, { reply_markup: { inline_keyboard: inline } } as any);
     }
   });
 
-  bot.action(/signup_(.*)/, async (ctx) => {
+  bot.action(/signup_ind_(.*)/, async (ctx) => {
     const matchId = (ctx.match as any)[1] as string;
     const userId = (ctx.state as any).userId as string;
-    // Create registration pending
-    await prisma.registration.create({
-      data: {
-        matchId,
-        userId,
-        type: 'INDIVIDUAL',
-        status: 'PENDING',
-      },
-    });
-    await ctx.reply('🧾 To‘lov uchun ma’lumot yuborildi. Admin tasdiqlaydi. / Данные для оплаты отправлены, ждите подтверждения.');
+    await prisma.registration.create({ data: { matchId, userId, type: 'INDIVIDUAL', status: 'PENDING' } });
+    await ctx.reply('🧾 To‘lov uchun ma’lumot yuborildi. Admin tasdiqlaydi.');
+  });
+
+  bot.action(/signup_team_(.*)/, async (ctx) => {
+    const matchId = (ctx.match as any)[1] as string;
+    const userId = (ctx.state as any).userId as string;
+    const team = await prisma.team.findFirst({ where: { captainId: userId } });
+    if (!team) return ctx.reply('Avval jamoa yarating: /team');
+    await prisma.registration.create({ data: { matchId, teamId: team.id, type: 'TEAM', status: 'PENDING' } });
+    await ctx.reply('🧾 Jamoa bilan ro‘yxatga olindi. To‘lov va tasdiqlash kutilmoqda.');
   });
 
   bot.hears(['👤 Profil', '👤 Профиль'], async (ctx) => {

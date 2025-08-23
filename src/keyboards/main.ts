@@ -11,13 +11,14 @@ export function buildMainKeyboard(ctx: Scenes.WizardContext) {
   ]).resize();
 }
 
-export function buildAuthKeyboard(ctx: Scenes.WizardContext) {
+export function buildAuthKeyboard(ctx: Scenes.WizardContext, opts?: { showRegister?: boolean }) {
   // @ts-ignore
   const uz = ctx.i18n.locale() === 'uz';
-  return Markup.keyboard([
-    [uz ? '📝 Ro‘yxatdan o‘tish' : '📝 Регистрация'],
-    [uz ? '🔐 Kirish' : '🔐 Войти'],
-  ]).resize();
+  const rows: string[][] = [];
+  const showRegister = opts?.showRegister !== false;
+  if (showRegister) rows.push([uz ? '📝 Ro‘yxatdan o‘tish' : '📝 Регистрация']);
+  rows.push([uz ? '🔐 Kirish' : '🔐 Войти']);
+  return Markup.keyboard(rows).resize();
 }
 
 

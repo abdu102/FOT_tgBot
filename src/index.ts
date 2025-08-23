@@ -59,7 +59,7 @@ bot.start(async (ctx) => {
   // @ts-ignore
   await ctx.reply(
     ctx.i18n.t('start.greet', { name }),
-    registered ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx)
+    registered ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx, { showRegister: false })
   );
 });
 
