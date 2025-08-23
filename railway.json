@@ -6,7 +6,7 @@
   },
   "deploy": {
     "startCommand": "npx prisma migrate deploy && node dist/index.js",
-    "healthcheckPath": "/",
+    "healthcheckPath": "/health",
     "restartPolicyType": "ON_FAILURE"
   }
 }
