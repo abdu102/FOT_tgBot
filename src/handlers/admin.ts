@@ -7,7 +7,6 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     await ctx.reply('Admin panel', {
       reply_markup: {
         inline_keyboard: [
-          [{ text: '➕ Match yaratish', callback_data: 'admin_create_match' }],
           [{ text: '🗓️ Sessiyalar', callback_data: 'admin_sessions' }],
           [{ text: '🧾 Ro‘yxatlar', callback_data: 'admin_registrations' }],
           [{ text: '✅ Tasdiqlash', callback_data: 'admin_approve' }],
@@ -29,10 +28,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     await sendAdminPanel(ctx);
   });
 
-  bot.action('admin_create_match', async (ctx) => {
-    if (!(ctx.state as any).isAdmin) return;
-    await ctx.scene.enter('match:create');
-  });
+  // Removed direct match creation; create matches inside a chosen session
 
   bot.action('admin_registrations', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
