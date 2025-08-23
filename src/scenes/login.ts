@@ -25,7 +25,7 @@ export function loginScene(prisma: PrismaClient) {
     async (ctx) => {
       const name = ((ctx.wizard.state as any).loginName as string).trim().toLowerCase();
       const pass = (ctx.message as any)?.text?.trim();
-      const user = await prisma.user.findFirst({ where: { username: name, isActive: true } });
+      const user = await prisma.user.findFirst({ where: { username: name } });
       const bcryptModule: any = await import('bcryptjs');
       const bcrypt = bcryptModule.default || bcryptModule;
       if (!user?.passwordHash || !(await bcrypt.compare(pass, user.passwordHash))) {
