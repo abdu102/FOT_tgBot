@@ -15,7 +15,7 @@ export async function tryJoinByInvite(prisma: PrismaClient, token: string, userI
 }
 
 export function buildInviteDeepLink(token: string): string {
-  const username = (process.env.BOT_USERNAME || '').replace(/^@/, '');
+  const username = (process.env.BOT_USERNAME || 'FOT_Tashkent_Bot').replace(/^@/, '');
   if (username) {
     return `https://t.me/${username}?start=join_${token}`;
   }
