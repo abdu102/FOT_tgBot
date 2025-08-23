@@ -18,6 +18,7 @@ export function sessionViewScene(prisma: PrismaClient) {
       actions.push([{ text: s.status !== 'STARTED' ? '▶️ Start' : '⏹ Stop', callback_data: s.status !== 'STARTED' ? `sess_start_${s.id}` : `sess_stop_${s.id}` }]);
       if (s.status === 'STARTED') {
         actions.push([{ text: '➕ Match qo‘shish', callback_data: `sess_add_match_${s.id}` }]);
+        actions.push([{ text: '📜 Matches', callback_data: `sess_matches_${s.id}` }]);
         actions.push([{ text: '📊 Statistika kiritish', callback_data: `sess_stats_entry_${s.id}` }]);
       }
       actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
@@ -52,6 +53,84 @@ export function sessionViewScene(prisma: PrismaClient) {
     const sLines = topScorers.map((p: any, i: number) => `${i+1}. ${p.name} — ⚽ ${p.goals}`).join('\n') || '—';
     const aLines = topAssists.map((p: any, i: number) => `${i+1}. ${p.name} — 🅰️ ${p.assists}`).join('\n') || '—';
     await ctx.reply(`Top Scorers:\n${sLines}\n\nTop Assists:\n${aLines}`);
+  });
+
+  // List matches and manage result & per-player stats
+  (scene as any).action?.(/sess_matches_(.*)/, async (ctx: any) => {
+    const id = (ctx.match as any)[1];
+    const matches = await prisma.match.findMany({ where: { sessionId: id } as any, include: { homeTeam: true, awayTeam: true } });
+    if (!matches.length) return ctx.answerCbQuery('No matches');
+    const rows = matches.map((m: any) => [{ text: `${m.homeTeam?.name || '-'} vs ${m.awayTeam?.name || '-'}`, callback_data: `sess_m_${m.id}` }]);
+    await ctx.reply('Sessiya matchlari:', { reply_markup: { inline_keyboard: rows } } as any);
+  });
+  (scene as any).action?.(/sess_m_(.*)/, async (ctx: any) => {
+    const mid = (ctx.match as any)[1];
+    const m = await prisma.match.findUnique({ where: { id: mid }, include: { homeTeam: true, awayTeam: true } });
+    if (!m) return;
+    const kb = {
+      inline_keyboard: [
+        [{ text: '🏆 Home won', callback_data: `m_res_${mid}_H` }, { text: '🏆 Away won', callback_data: `m_res_${mid}_A` }, { text: '🤝 Draw', callback_data: `m_res_${mid}_D` }],
+        [{ text: '⚽ Add goal', callback_data: `m_goal_${mid}` }, { text: '🅰️ Add assist', callback_data: `m_ast_${mid}` }],
+      ],
+    } as any;
+    await ctx.reply(`${m.homeTeam?.name || '-'} ${m.homeScore} : ${m.awayScore} ${m.awayTeam?.name || '-'}`, { reply_markup: kb } as any);
+  });
+  (scene as any).action?.(/m_res_(.*)_(H|A|D)/, async (ctx: any) => {
+    const mid = (ctx.match as any)[1];
+    const r = (ctx.match as any)[2];
+    const data: any = { result: r === 'H' ? 'HOME' : r === 'A' ? 'AWAY' : 'DRAW' };
+    await prisma.match.update({ where: { id: mid }, data });
+    await ctx.answerCbQuery('Saved');
+  });
+  (scene as any).action?.(/m_goal_(.*)/, async (ctx: any) => {
+    const mid = (ctx.match as any)[1];
+    const m = await prisma.match.findUnique({ where: { id: mid } });
+    if (!m) return;
+    const rows: any[] = [];
+    if ((m as any).homeTeamId) rows.push([{ text: 'Home team', callback_data: `m_goal_t_${mid}_H` }]);
+    if ((m as any).awayTeamId) rows.push([{ text: 'Away team', callback_data: `m_goal_t_${mid}_A` }]);
+    await ctx.reply('Jamoani tanlang', { reply_markup: { inline_keyboard: rows } } as any);
+  });
+  (scene as any).action?.(/m_goal_t_(.*)_(H|A)/, async (ctx: any) => {
+    const mid = (ctx.match as any)[1];
+    const side = (ctx.match as any)[2];
+    const m = await prisma.match.findUnique({ where: { id: mid } });
+    const teamId = side === 'H' ? (m as any)?.homeTeamId : (m as any)?.awayTeamId;
+    if (!teamId) return;
+    const members = await prisma.teamMember.findMany({ where: { teamId }, include: { user: true } });
+    const rows = members.map((tm: any) => [{ text: tm.user.firstName, callback_data: `m_goal_p_${mid}_${tm.userId}` }]);
+    await ctx.reply('Goll scorer', { reply_markup: { inline_keyboard: rows } } as any);
+  });
+  (scene as any).action?.(/m_goal_p_(.*)_(.*)/, async (ctx: any) => {
+    const mid = (ctx.match as any)[1];
+    const userId = (ctx.match as any)[2];
+    await prisma.matchStat.upsert({ where: { matchId_userId: { matchId: mid, userId } }, update: { goals: { increment: 1 } as any }, create: { matchId: mid, userId, goals: 1, assists: 0, won: false } as any });
+    await ctx.answerCbQuery('Goal +1');
+  });
+  (scene as any).action?.(/m_ast_(.*)/, async (ctx: any) => {
+    const mid = (ctx.match as any)[1];
+    const m = await prisma.match.findUnique({ where: { id: mid } });
+    if (!m) return;
+    const rows: any[] = [];
+    if ((m as any).homeTeamId) rows.push([{ text: 'Home team', callback_data: `m_ast_t_${mid}_H` }]);
+    if ((m as any).awayTeamId) rows.push([{ text: 'Away team', callback_data: `m_ast_t_${mid}_A` }]);
+    await ctx.reply('Jamoani tanlang', { reply_markup: { inline_keyboard: rows } } as any);
+  });
+  (scene as any).action?.(/m_ast_t_(.*)_(H|A)/, async (ctx: any) => {
+    const mid = (ctx.match as any)[1];
+    const side = (ctx.match as any)[2];
+    const m = await prisma.match.findUnique({ where: { id: mid } });
+    const teamId = side === 'H' ? (m as any)?.homeTeamId : (m as any)?.awayTeamId;
+    if (!teamId) return;
+    const members = await prisma.teamMember.findMany({ where: { teamId }, include: { user: true } });
+    const rows = members.map((tm: any) => [{ text: tm.user.firstName, callback_data: `m_ast_p_${mid}_${tm.userId}` }]);
+    await ctx.reply('Assistant', { reply_markup: { inline_keyboard: rows } } as any);
+  });
+  (scene as any).action?.(/m_ast_p_(.*)_(.*)/, async (ctx: any) => {
+    const mid = (ctx.match as any)[1];
+    const userId = (ctx.match as any)[2];
+    await prisma.matchStat.upsert({ where: { matchId_userId: { matchId: mid, userId } }, update: { assists: { increment: 1 } as any }, create: { matchId: mid, userId, goals: 0, assists: 1, won: false } as any });
+    await ctx.answerCbQuery('Assist +1');
   });
 
   // Stats entry available only via session view when started

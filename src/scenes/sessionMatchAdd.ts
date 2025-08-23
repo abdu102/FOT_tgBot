@@ -26,9 +26,7 @@ export function matchAddScene(prisma: PrismaClient) {
     (ctx.session as any).matchAdd.homeIdx = idx;
     const teams = await (prisma as any).session.findUnique({ where: { id: st.sid }, include: { teams: { include: { team: true } } } });
     const rows = (teams?.teams || []).map((t: any, i: number) => i !== idx ? [{ text: t.team.name, callback_data: `mc_a_${i}` }] : null).filter(Boolean) as any[];
-    await ctx.editMessageReplyMarkup({ inline_keyboard: rows } as any).catch(async () => {
-      await ctx.reply('Mehmon jamoa:', { reply_markup: { inline_keyboard: rows } } as any);
-    });
+    await ctx.reply('Mehmon jamoa:', { reply_markup: { inline_keyboard: rows } } as any);
   });
 
   (scene as any).action?.(/mc_a_(\d+)/, async (ctx: any) => {
