@@ -44,6 +44,12 @@ export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, pri
     if (exists) return ctx.reply('Sizda allaqachon jamoa bor / Команда уже есть');
     await ctx.scene.enter('team:create');
   });
+
+  bot.action(/team_add_more_(.*)/, async (ctx) => {
+    const teamId = (ctx.match as any)[1] as string;
+    (ctx.session as any).addMemberTeamId = teamId;
+    await ctx.scene.enter('team:addMember');
+  });
 }
 
 
