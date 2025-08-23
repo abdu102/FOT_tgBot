@@ -1,6 +1,7 @@
 import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { autoFormTeams } from '../services/autoFormation';
+import { createDemoSessionWithTeams } from '../services/demo';
 
 export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   const sendAdminPanel = async (ctx: any) => {
@@ -15,6 +16,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
           [{ text: '✅ Tasdiqlash', callback_data: 'admin_approve' }],
           [{ text: '🤖 Auto-formation', callback_data: 'admin_autoform' }],
           [{ text: '🏆 Winner & MoM', callback_data: 'admin_winners' }],
+          [{ text: '🧪 Demo: create session + teams', callback_data: 'admin_demo_seed' }],
         ],
       },
     } as any);
@@ -133,6 +135,12 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.action('admin_create_session', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     await ctx.scene.enter('admin:sessions');
+  });
+
+  bot.action('admin_demo_seed', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const { sessionId } = await createDemoSessionWithTeams(prisma);
+    await ctx.reply(`✅ Demo session created: ${sessionId}`);
   });
 }
 
