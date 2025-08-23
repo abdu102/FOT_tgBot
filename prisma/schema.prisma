@@ -30,6 +30,7 @@ model User {
   stats         PlayerStat[]
   matchStats    MatchStat[]
   captainTeams  Team[]        @relation("TeamCaptain")
+  momMatches    Match[]       @relation("MatchMoMUser")
 }
 
 model Team {
@@ -45,6 +46,10 @@ model Team {
   updatedAt   DateTime     @updatedAt
   registrations Registration[]
   payments      Payment[]
+  homeMatches   Match[]       @relation("MatchHomeTeam")
+  awayMatches   Match[]       @relation("MatchAwayTeam")
+  wonMatches    Match[]       @relation("MatchWinnerTeam")
+  sessionTeams  SessionTeam[]
 }
 
 model TeamMember {
