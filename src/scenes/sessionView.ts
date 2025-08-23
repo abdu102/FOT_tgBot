@@ -1,5 +1,6 @@
 import { Scenes } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
+import { computeSessionTable } from '../services/session';
 
 export function sessionViewScene(prisma: PrismaClient) {
   const scene = new Scenes.WizardScene<Scenes.WizardContext>(
@@ -32,8 +33,10 @@ export function sessionViewScene(prisma: PrismaClient) {
   (scene as any).action?.(/sess_stop_(.*)/, async (ctx: any) => {
     const id = (ctx.match as any)[1];
     await (prisma as any).session.update({ where: { id }, data: { status: 'FINISHED' as any } });
+    const table = await computeSessionTable(prisma, id);
+    const lines = table.map((t: any, i: number) => `${i+1}. ${t.team.name} — ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`).join('\n') || '—';
     await ctx.answerCbQuery('Stopped');
-    await ctx.scene.enter('admin:sessionView', { sessionId: id });
+    await ctx.reply(`🏁 Sessiya yakunlandi\n\n${lines}`, { reply_markup: { inline_keyboard: [[{ text: '📊 Statistics', callback_data: `sess_stats_${id}` }]] } } as any);
   });
   (scene as any).action?.(/sess_add_match_(.*)/, async (ctx: any) => {
     await ctx.scene.enter('admin:sessionMatchAdd', { sessionId: (ctx.match as any)[1] });
