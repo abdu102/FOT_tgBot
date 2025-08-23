@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 
-type MemberDraft = { name: string; phone?: string; age?: number };
+type MemberDraft = { name: string; phone?: string; age?: number; username?: string };
 
 export function teamCreateScene(prisma: PrismaClient) {
   const scene = new Scenes.WizardScene<Scenes.WizardContext>(
@@ -13,66 +13,74 @@ export function teamCreateScene(prisma: PrismaClient) {
     },
     async (ctx) => {
       (ctx.wizard.state as any).teamName = (ctx.message as any)?.text?.trim();
-      await ctx.reply('A’zolarni qo‘shasizmi? / Добавить участников?', Markup.inlineKeyboard([
-        [Markup.button.callback('➕ Qo‘shish', 'team_add_member')],
-        [Markup.button.callback('✅ Yakunlash', 'team_finish')],
-        [Markup.button.callback('⬅️ Menyuga qaytish', 'team_back_menu')],
-      ]));
+      await ctx.reply('👤 A’zoning ism va familiyasi? / Имя и фамилия участника?', Markup.keyboard([[ '⬅️ Menyuga qaytish' ]]).resize());
       return ctx.wizard.next();
     },
+    // Step 2: member name
     async (ctx) => {
-      if (!('callback_query' in ctx.update)) return;
-      const data = (ctx.update.callback_query as any).data as string;
-      if (data === 'team_add_member') {
-        await ctx.reply('👤 Ism? / Имя?');
-        return ctx.wizard.selectStep(3);
-      }
-      if (data === 'team_finish') {
-        return ctx.wizard.selectStep(6);
-      }
-      if (data === 'team_back_menu') {
-        await ctx.reply('Menyuga qaytdingiz / Возврат в меню');
-        return ctx.scene.leave();
-      }
+      const txt = (ctx.message as any)?.text?.trim();
+      if (txt === '⬅️ Menyuga qaytish') { await ctx.reply('Menyuga qaytdingiz'); return ctx.scene.leave(); }
+      (ctx.wizard.state as any).currentName = txt;
+      await ctx.reply('📅 Yoshi? / Возраст?', Markup.keyboard([[ '⬅️ Menyuga qaytish' ]]).resize());
+      return ctx.wizard.next();
     },
-    // Step 3: member name
+    // Step 3: member age
     async (ctx) => {
-      (ctx.wizard.state as any).currentName = (ctx.message as any)?.text?.trim();
-      await ctx.reply(
-        '📞 Telefon yoki kontakt yuboring / Телефон или контакт',
-        Markup.keyboard([[Markup.button.contactRequest('📞 Share / Отправить')]]).resize().oneTime()
-      );
+      const txt = (ctx.message as any)?.text?.trim();
+      if (txt === '⬅️ Menyuga qaytish') { await ctx.reply('Menyuga qaytdingiz'); return ctx.scene.leave(); }
+      const ageNum = parseInt(txt);
+      (ctx.wizard.state as any).currentAge = isNaN(ageNum) ? undefined : ageNum;
+      await ctx.reply('📞 Telefon raqam? (+998...)', Markup.keyboard([[ '⬅️ Menyuga qaytish' ]]).resize());
       return ctx.wizard.next();
     },
     // Step 4: member phone
     async (ctx) => {
-      const msg: any = ctx.message;
-      const raw = msg?.contact?.phone_number || msg?.text?.trim();
-      const phone = (raw || '').replace(/[^0-9+]/g, '');
+      const txt = (ctx.message as any)?.text?.trim();
+      if (txt === '⬅️ Menyuga qaytish') { await ctx.reply('Menyuga qaytish'); return ctx.scene.leave(); }
+      const phone = (txt || '').replace(/[^0-9+]/g, '');
       (ctx.wizard.state as any).currentPhone = phone || undefined;
-      await ctx.reply('📅 Yoshi? / Возраст?');
+      await ctx.reply('👤 Telegram username ( @siz_yozmasdan )?', Markup.keyboard([[ '⬅️ Menyuga qaytish' ]]).resize());
       return ctx.wizard.next();
     },
-    // Step 5: member age, push and back to add/finish menu
+    // Step 5: member username and push
     async (ctx) => {
-      const ageNum = parseInt((ctx.message as any)?.text?.trim());
+      const txt = (ctx.message as any)?.text?.trim();
+      if (txt === '⬅️ Menyuga qaytish') { await ctx.reply('Menyuga qaytish'); return ctx.scene.leave(); }
+      const username = (txt || '').replace(/^@/, '').toLowerCase();
       const member: MemberDraft = {
         name: (ctx.wizard.state as any).currentName,
         phone: (ctx.wizard.state as any).currentPhone,
-        age: isNaN(ageNum) ? undefined : ageNum,
+        age: (ctx.wizard.state as any).currentAge,
+        username,
       };
       (ctx.wizard.state as any).members.push(member);
-      // clear temp
       (ctx.wizard.state as any).currentName = undefined;
       (ctx.wizard.state as any).currentPhone = undefined;
+      (ctx.wizard.state as any).currentAge = undefined;
       await ctx.reply('Yana a’zo qo‘shasizmi?', Markup.inlineKeyboard([
         [Markup.button.callback('➕ Qo‘shish', 'team_add_member')],
         [Markup.button.callback('✅ Yakunlash', 'team_finish')],
         [Markup.button.callback('⬅️ Menyuga qaytish', 'team_back_menu')],
       ]));
-      return ctx.wizard.selectStep(2);
+      return ctx.wizard.next();
     },
-    // Step 6: persist team and members
+    // Step 6: inline handler add/finish/back
+    async (ctx) => {
+      if (!('callback_query' in ctx.update)) return;
+      const data = (ctx.update.callback_query as any).data as string;
+      if (data === 'team_add_member') {
+        await ctx.reply('👤 A’zoning ism va familiyasi?', Markup.keyboard([[ '⬅️ Menyuga qaytish' ]]).resize());
+        return ctx.wizard.selectStep(2);
+      }
+      if (data === 'team_finish') {
+        return ctx.wizard.selectStep(7);
+      }
+      if (data === 'team_back_menu') {
+        await ctx.reply('Menyuga qaytdingiz / Возврат в меню', Markup.removeKeyboard());
+        return ctx.scene.leave();
+      }
+    },
+    // Step 7: persist team and members
     async (ctx) => {
       const userId = (ctx.state as any).userId as string;
       const name = (ctx.wizard.state as any).teamName as string;
@@ -89,7 +97,7 @@ export function teamCreateScene(prisma: PrismaClient) {
       for (const m of members) {
         let u = m.phone ? await prisma.user.findUnique({ where: { phone: m.phone } }).catch(() => null) : null;
         if (!u) {
-          u = await prisma.user.create({ data: { telegramId: `unlinked_${Date.now()}_${Math.random().toString(36).slice(2)}`, firstName: m.name.split(' ')[0], lastName: m.name.split(' ').slice(1).join(' ') || null, phone: m.phone, age: m.age || null } });
+          u = await prisma.user.create({ data: { telegramId: `unlinked_${Date.now()}_${Math.random().toString(36).slice(2)}`, firstName: m.name.split(' ')[0], lastName: m.name.split(' ').slice(1).join(' ') || null, phone: m.phone, age: m.age || null, username: m.username } });
         }
         await prisma.teamMember.upsert({
           where: { teamId_userId: { teamId: team.id, userId: u.id } },
@@ -104,8 +112,8 @@ export function teamCreateScene(prisma: PrismaClient) {
     }
   );
 
-  scene.action('team_add_member', async (ctx) => ctx.wizard.selectStep(3));
-  scene.action('team_finish', async (ctx) => ctx.wizard.selectStep(6));
+  scene.action('team_add_member', async (ctx) => ctx.wizard.selectStep(2));
+  scene.action('team_finish', async (ctx) => ctx.wizard.selectStep(7));
   scene.action('team_back_menu', async (ctx) => ctx.scene.leave());
 
   return scene;
