@@ -8,10 +8,10 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
       reply_markup: {
         inline_keyboard: [
           [{ text: '🗓️ Sessiyalar', callback_data: 'admin_sessions' }],
+          [{ text: '➕ Create session', callback_data: 'admin_create_session' }],
           [{ text: '🧾 Ro‘yxatlar', callback_data: 'admin_registrations' }],
           [{ text: '✅ Tasdiqlash', callback_data: 'admin_approve' }],
           [{ text: '🤖 Auto-formation', callback_data: 'admin_autoform' }],
-          [{ text: '📊 Statistika kiritish', callback_data: 'admin_stats' }],
           [{ text: '🏆 Winner & MoM', callback_data: 'admin_winners' }],
         ],
       },
@@ -116,10 +116,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     await ctx.reply('🤖 Done');
   });
 
-  bot.action('admin_stats', async (ctx) => {
-    if (!(ctx.state as any).isAdmin) return;
-    await ctx.scene.enter('admin:stats');
-  });
+  // stats entry is only accessible within a started session (via session view)
 
   bot.action('admin_winners', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
@@ -127,6 +124,11 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   });
 
   bot.action('admin_sessions', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    await ctx.scene.enter('admin:sessions');
+  });
+
+  bot.action('admin_create_session', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     await ctx.scene.enter('admin:sessions');
   });

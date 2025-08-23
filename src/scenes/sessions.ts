@@ -5,7 +5,7 @@ export function sessionsScene(prisma: PrismaClient) {
   const scene = new Scenes.WizardScene<Scenes.WizardContext>(
     'admin:sessions',
     async (ctx) => {
-      if (!(ctx.state as any).isAdmin) { await ctx.reply('Faqat admin'); return ctx.scene.leave(); }
+      if (!(ctx.state as any).isAdmin) { await ctx.reply('Faqat admin'); return; }
       // Show a simple month/year picker and day grid
       const now = new Date();
       const y = now.getFullYear();
@@ -25,7 +25,7 @@ export function sessionsScene(prisma: PrismaClient) {
         { text: '»', callback_data: `sess_next_${y}_${m}` }
       ]);
       await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any);
-      return ctx.scene.leave();
+      return;
     },
   );
 

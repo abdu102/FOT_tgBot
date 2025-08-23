@@ -14,12 +14,14 @@ export function sessionViewScene(prisma: PrismaClient) {
       if (!s) { await ctx.reply('Session topilmadi'); return ctx.scene.leave(); }
       const header = `🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}  [${s.status}]`;
       const table = s.teams.map((t: any) => `${t.team.name}: ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`).join('\n') || 'Hali jamoalar yo‘q';
-      const actions = [
-        [{ text: s.status !== 'STARTED' ? '▶️ Start' : '⏹ Stop', callback_data: s.status !== 'STARTED' ? `sess_start_${s.id}` : `sess_stop_${s.id}` }],
-        [{ text: '➕ Match qo‘shish', callback_data: `sess_add_match_${s.id}` }],
-        [{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }],
-        [{ text: '⬅️ Orqaga', callback_data: 'open_admin_panel' }],
-      ];
+      const actions: any[] = [];
+      actions.push([{ text: s.status !== 'STARTED' ? '▶️ Start' : '⏹ Stop', callback_data: s.status !== 'STARTED' ? `sess_start_${s.id}` : `sess_stop_${s.id}` }]);
+      if (s.status === 'STARTED') {
+        actions.push([{ text: '➕ Match qo‘shish', callback_data: `sess_add_match_${s.id}` }]);
+        actions.push([{ text: '📊 Statistika kiritish', callback_data: `sess_stats_entry_${s.id}` }]);
+      }
+      actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
+      actions.push([{ text: '⬅️ Orqaga', callback_data: 'open_admin_panel' }]);
       await ctx.reply(`${header}\n\n${table}`, { reply_markup: { inline_keyboard: actions } } as any);
       return ctx.scene.leave();
     }
@@ -50,6 +52,14 @@ export function sessionViewScene(prisma: PrismaClient) {
     const sLines = topScorers.map((p: any, i: number) => `${i+1}. ${p.name} — ⚽ ${p.goals}`).join('\n') || '—';
     const aLines = topAssists.map((p: any, i: number) => `${i+1}. ${p.name} — 🅰️ ${p.assists}`).join('\n') || '—';
     await ctx.reply(`Top Scorers:\n${sLines}\n\nTop Assists:\n${aLines}`);
+  });
+
+  // Stats entry available only via session view when started
+  (scene as any).action?.(/sess_stats_entry_(.*)/, async (ctx: any) => {
+    const id = (ctx.match as any)[1];
+    const s = await (prisma as any).session.findUnique({ where: { id } });
+    if (!s || (s as any).status !== 'STARTED') return ctx.answerCbQuery('Session not started');
+    await ctx.scene.enter('admin:sessionMatchStats', { sessionId: id });
   });
 
   // Session MoM: choose team -> choose player
