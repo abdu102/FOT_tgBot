@@ -96,11 +96,20 @@ export function sessionsScene(prisma: PrismaClient) {
       await ctx.reply('Tugash vaqti (HH:mm)');
       return;
     }
-    if (sess.sessCreateDay && sess.sessCreateStart && !sess.sessCreateDone) {
+    if (sess.sessCreateDay && sess.sessCreateStart && !sess.sessCreateType) {
       const start = `${sess.sessCreateDay}T${sess.sessCreateStart}:00`;
       const end = `${sess.sessCreateDay}T${(ctx.message as any).text.trim()}:00`;
-      const s = await (prisma as any).session.create({ data: { startAt: new Date(start), endAt: new Date(end) } });
-      sess.sessCreateDone = true; sess.sessCreateDay = undefined; sess.sessCreateStart = undefined;
+      sess.sessCreateEnd = end;
+      await ctx.reply('Turi? (5v5 / 6v6)');
+      return;
+    }
+    if (sess.sessCreateDay && sess.sessCreateStart && sess.sessCreateEnd && !sess.sessCreateDone) {
+      const start = `${sess.sessCreateDay}T${sess.sessCreateStart}:00`;
+      const end = sess.sessCreateEnd as string;
+      const tRaw = String((ctx.message as any).text || '').toLowerCase();
+      const type = tRaw.includes('6') ? 'SIX_V_SIX' : 'FIVE_V_FIVE';
+      const s = await (prisma as any).session.create({ data: { startAt: new Date(start), endAt: new Date(end), type } });
+      sess.sessCreateDone = true; sess.sessCreateDay = undefined; sess.sessCreateStart = undefined; sess.sessCreateEnd = undefined; sess.sessCreateType = undefined;
       await ctx.reply('✅ Sessiya yaratildi', { reply_markup: { inline_keyboard: [[{ text: 'Ochil', callback_data: `sess_open_${s.id}` }]] } } as any);
       return;
     }

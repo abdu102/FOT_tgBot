@@ -105,6 +105,8 @@ model Session {
   startAt   DateTime
   endAt     DateTime
   status    SessionStatus @default(PLANNED)
+  type      MatchType     @default(FIVE_V_FIVE)
+  maxTeams  Int           @default(4)
   matches   Match[]
   teams     SessionTeam[]
   createdAt DateTime @default(now())

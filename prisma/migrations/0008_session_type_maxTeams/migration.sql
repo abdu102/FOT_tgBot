@@ -1,0 +1,5 @@
+-- AlterTable Session
+ALTER TABLE "Session" ADD COLUMN "type" "MatchType" NOT NULL DEFAULT 'FIVE_V_FIVE';
+ALTER TABLE "Session" ADD COLUMN "maxTeams" INTEGER NOT NULL DEFAULT 4;
+
+
