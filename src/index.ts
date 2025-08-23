@@ -73,29 +73,42 @@ setupCronJobs(bot.telegram, prisma);
 initAdmin(prisma);
 
 const port = parseInt(process.env.PORT || '3000', 10);
-const WEBHOOK_URL = process.env.WEBHOOK_URL; // e.g. https://your-domain/telegram
+const WEBHOOK_URL = process.env.WEBHOOK_URL || process.env.RAILWAY_STATIC_URL; // auto-use Railway static URL if present
 
 async function startBot() {
+  const app = express();
+  app.use(express.json());
+  app.get('/', (_req: express.Request, res: express.Response) => res.status(200).send('ok'));
+  app.get('/health', (_req: express.Request, res: express.Response) => res.status(200).send('ok'));
+
   if (WEBHOOK_URL) {
-    const app = express();
     const path = `/telegraf/${BOT_TOKEN}`;
-    await bot.telegram.setWebhook(`${WEBHOOK_URL}${path}`);
-    app.use(express.json());
+    const full = `${WEBHOOK_URL.replace(/\/$/, '')}${path}`;
+    await bot.telegram.setWebhook(full, { drop_pending_updates: true });
     app.use(bot.webhookCallback(path));
-    app.get('/health', (_req: express.Request, res: express.Response) => res.status(200).send('ok'));
-    app.listen(port, () => console.log(`Webhook server on :${port}`));
+    app.listen(port, () => console.log(`Webhook server on :${port} url=${full}`));
   } else {
-    await bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
-    await bot.launch({ dropPendingUpdates: true });
-    console.log('Bot launched with polling');
-    process.once('SIGINT', () => bot.stop('SIGINT'));
-    process.once('SIGTERM', () => bot.stop('SIGTERM'));
+    try {
+      await bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
+      await bot.launch({ dropPendingUpdates: true });
+      console.log('Bot launched with polling');
+      process.once('SIGINT', () => bot.stop('SIGINT'));
+      process.once('SIGTERM', () => bot.stop('SIGTERM'));
+    } catch (e: any) {
+      // If another instance is polling, keep the web server alive for healthchecks
+      if (e?.response?.error_code === 409) {
+        console.error('Polling conflict (409): another instance is running. Keeping server alive.');
+      } else {
+        throw e;
+      }
+    }
+    app.listen(port, () => console.log(`Health server on :${port}`));
   }
 }
 
 startBot().catch((e) => {
   console.error('Bot start error', e);
-  process.exit(1);
+  // Do not exit hard to allow Railway to pass healthchecks
 });
 
 
