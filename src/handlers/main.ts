@@ -1,6 +1,7 @@
 import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { buildMainKeyboard } from '../keyboards/main';
+import bcrypt from 'bcryptjs';
 
 export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   bot.hears(['📝 Ro‘yxatdan o‘tish', '📝 Регистрация'], async (ctx) => {
@@ -71,6 +72,67 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
         ],
       },
     } as any);
+  });
+
+  // Logout: deactivate account (do not delete), remove phone linkage
+  bot.action('profile_logout', async (ctx) => {
+    const userId = (ctx.state as any).userId as string;
+    await prisma.user.update({ where: { id: userId }, data: { isActive: false, phone: null } });
+    (ctx.state as any).isRegistered = false;
+    await ctx.reply('✅ Tizimdan chiqdingiz / Вы вышли из системы', buildMainKeyboard(ctx, { showRegister: true, showLogin: true }));
+  });
+
+  // Change password flow (simple inline asks)
+  bot.action('profile_password', async (ctx) => {
+    await ctx.reply('Yangi parol yuboring / Отправьте новый пароль');
+    (ctx.session as any).awaitingPassword = true;
+  });
+
+  bot.on('text', async (ctx, next) => {
+    if ((ctx.session as any).awaitingPassword) {
+      const raw = (ctx.message as any).text.trim();
+      if (raw.length < 4) {
+        return ctx.reply('Parol juda qisqa / Пароль слишком короткий');
+      }
+      const userId = (ctx.state as any).userId as string;
+      const hash = await bcrypt.hash(raw, 10);
+      await prisma.user.update({ where: { id: userId }, data: { passwordHash: hash } });
+      (ctx.session as any).awaitingPassword = false;
+      return ctx.reply('✅ Parol yangilandi / Пароль обновлён');
+    }
+    return next();
+  });
+
+  // Login button
+  bot.hears(['🔐 Kirish', '🔐 Войти'], async (ctx) => {
+    await ctx.reply('Login: ismingizni yuboring / Отправьте имя');
+    (ctx.session as any).awaitingLoginName = true;
+  });
+
+  bot.on('text', async (ctx, next) => {
+    const sess: any = ctx.session || {};
+    if (sess.awaitingLoginName && !sess.awaitingLoginPassword) {
+      sess.loginName = (ctx.message as any).text.trim();
+      sess.awaitingLoginPassword = true;
+      sess.awaitingLoginName = false;
+      return ctx.reply('Parol yuboring / Отправьте пароль');
+    }
+    if (sess.awaitingLoginPassword) {
+      const name = sess.loginName as string;
+      const pass = (ctx.message as any).text.trim();
+      const user = await prisma.user.findFirst({ where: { firstName: name, isActive: true } });
+      if (!user?.passwordHash || !(await bcrypt.compare(pass, user.passwordHash))) {
+        sess.awaitingLoginPassword = false;
+        return ctx.reply('Login yoki parol noto‘g‘ri / Неверные данные');
+      }
+      // Link current telegramId to this user
+      await prisma.user.update({ where: { id: user.id }, data: { telegramId: String(ctx.from?.id), isActive: true } });
+      (ctx.state as any).userId = user.id;
+      (ctx.state as any).isRegistered = Boolean(user.phone);
+      sess.awaitingLoginPassword = false;
+      return ctx.reply('✅ Kirish muvaffaqiyatli / Вход выполнен', buildMainKeyboard(ctx, { showRegister: !user.phone, showLogin: false }));
+    }
+    return next();
   });
 }
 
