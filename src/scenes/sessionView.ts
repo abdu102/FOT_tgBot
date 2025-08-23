@@ -71,11 +71,12 @@ export function sessionViewScene(prisma: PrismaClient) {
     const mid = (ctx.match as any)[1];
     const m = await prisma.match.findUnique({ where: { id: mid }, include: { homeTeam: true, awayTeam: true } });
     if (!m) return;
+    const sid = (m as any).sessionId as string | undefined;
     const kb = {
       inline_keyboard: [
         [{ text: '🏆 1 won', callback_data: `m_res_${mid}_1` }, { text: '🏆 2 won', callback_data: `m_res_${mid}_2` }, { text: '🤝 Draw', callback_data: `m_res_${mid}_D` }],
         [{ text: '⚽ Add goal', callback_data: `m_goal_${mid}` }, { text: '🅰️ Add assist', callback_data: `m_ast_${mid}` }],
-        [{ text: '⬅️ Back', callback_data: `sess_matches_${(ctx.scene.state as any)?.sessionId || ''}` }],
+        [{ text: '⬅️ Back', callback_data: `sess_matches_${sid || ''}` }],
       ],
     } as any;
     await ctx.reply(`${m.homeTeam?.name || '-'} ${m.homeScore} : ${m.awayScore} ${m.awayTeam?.name || '-'}`, { reply_markup: kb } as any);

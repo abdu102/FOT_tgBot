@@ -123,6 +123,8 @@ export function sessionsScene(prisma: PrismaClient) {
 
   (scene as any).action?.(/sess_open_(.*)/, async (ctx: any) => {
     if (!(ctx.state as any).isAdmin) return;
+    try { await ctx.answerCbQuery(); } catch {}
+    try { await ctx.deleteMessage(); } catch {}
     await ctx.scene.enter('admin:sessionView', { sessionId: (ctx.match as any)[1] });
   });
 
