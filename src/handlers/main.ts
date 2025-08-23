@@ -19,31 +19,32 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
 
   bot.hears(['⚽ Haftalik o‘yinlar', '⚽ Еженедельные матчи'], async (ctx) => {
     const isAuth = Boolean((ctx.state as any).isAuthenticated);
-    const matches = await prisma.match.findMany({ orderBy: { dateTime: 'asc' }, take: 10 });
-    if (!matches.length) return ctx.reply('Hozircha yo‘q / Пока нет', isAuth ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx));
-    for (const m of matches) {
+    const sessions = await (prisma as any).session.findMany({ orderBy: { startAt: 'asc' }, take: 10 });
+    if (!sessions.length) return ctx.reply('Hozircha yo‘q / Пока нет', isAuth ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx));
+    for (const s of sessions) {
       const inline = [
-        [{ text: '✍️ Shaxsiy / Индивидуально', callback_data: `signup_ind_${m.id}` }],
+        [{ text: '✍️ Shaxsiy / Индивидуально', callback_data: `sess_signup_ind_${s.id}` }],
       ];
       const team = await prisma.team.findFirst({ where: { captainId: (ctx.state as any).userId } });
-      if (team) inline.push([{ text: '👥 Jamoa bilan / Командой', callback_data: `signup_team_${m.id}` }]);
-      await ctx.reply(`📅 ${m.dateTime.toISOString().slice(0,16).replace('T',' ')}\n📍 ${m.location}\n💰 ${m.pricePerUser} UZS`, { reply_markup: { inline_keyboard: inline } } as any);
+      if (team) inline.push([{ text: '👥 Jamoa bilan / Командой', callback_data: `sess_signup_team_${s.id}` }]);
+      const typeLabel = (s as any).type === 'SIX_V_SIX' ? '6v6' : '5v5';
+      await ctx.reply(`🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}\n🧩 ${typeLabel} | Max 4 jamoa\nHolat: ${(s as any).status}`, { reply_markup: { inline_keyboard: inline } } as any);
     }
   });
 
-  bot.action(/signup_ind_(.*)/, async (ctx) => {
-    const matchId = (ctx.match as any)[1] as string;
+  bot.action(/sess_signup_ind_(.*)/, async (ctx) => {
+    const sessionId = (ctx.match as any)[1] as string;
     const userId = (ctx.state as any).userId as string;
-    await prisma.registration.create({ data: { matchId, userId, type: 'INDIVIDUAL', status: 'PENDING' } });
+    const reg = await (prisma as any).sessionRegistration.create({ data: { sessionId, userId, type: 'INDIVIDUAL', status: 'PENDING' } });
     await ctx.reply('🧾 To‘lov uchun ma’lumot yuborildi. Admin tasdiqlaydi.');
   });
 
-  bot.action(/signup_team_(.*)/, async (ctx) => {
-    const matchId = (ctx.match as any)[1] as string;
+  bot.action(/sess_signup_team_(.*)/, async (ctx) => {
+    const sessionId = (ctx.match as any)[1] as string;
     const userId = (ctx.state as any).userId as string;
     const team = await prisma.team.findFirst({ where: { captainId: userId } });
     if (!team) return ctx.reply('Avval jamoa yarating: /team');
-    await prisma.registration.create({ data: { matchId, teamId: team.id, type: 'TEAM', status: 'PENDING' } });
+    await (prisma as any).sessionRegistration.create({ data: { sessionId, teamId: team.id, type: 'TEAM', status: 'PENDING' } });
     await ctx.reply('🧾 Jamoa bilan ro‘yxatga olindi. To‘lov va tasdiqlash kutilmoqda.');
   });
 

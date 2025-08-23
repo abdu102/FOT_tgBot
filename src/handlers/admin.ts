@@ -59,6 +59,41 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     }
   });
 
+  // Session registrations approval
+  bot.action('admin_sess_approve', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const regs = await (prisma as any).sessionRegistration.findMany({ where: { status: 'PENDING' }, include: { user: true, team: true, session: true, payment: true }, take: 10 });
+    if (!regs.length) return ctx.reply('Sessiya pending yo‘q');
+    for (const r of regs) {
+      const title = r.type === 'TEAM' ? `TEAM ${r.team?.name}` : `USER ${r.user?.firstName}`;
+      await ctx.reply(
+        `📝 ${title}\nSession: ${r.session?.startAt.toISOString()}\nTo‘lov: ${r.payment?.amount ?? 0} (${r.payment?.status})`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '✅ Approve', callback_data: `sess_approve_${r.id}` }],
+              [{ text: '❌ Reject', callback_data: `sess_reject_${r.id}` }],
+            ],
+          },
+        } as any
+      );
+    }
+  });
+
+  bot.action(/sess_approve_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const id = (ctx.match as any)[1];
+    await (prisma as any).sessionRegistration.update({ where: { id }, data: { status: 'APPROVED', approvedAt: new Date() } });
+    await ctx.reply('✅ Sessiya ro‘yxatdan o‘tish tasdiqlandi');
+  });
+
+  bot.action(/sess_reject_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const id = (ctx.match as any)[1];
+    await (prisma as any).sessionRegistration.update({ where: { id }, data: { status: 'REJECTED' } });
+    await ctx.reply('❌ Sessiya ro‘yxatdan o‘tish rad etildi');
+  });
+
   bot.action(/approve_(.*)/, async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     const id = (ctx.match as any)[1];

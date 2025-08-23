@@ -1,6 +1,7 @@
 import { Scenes } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { computeSessionTable, getSessionTopPlayers } from '../services/session';
+import { autoFormSessionTeams } from '../services/sessionFormation';
 
 export function sessionViewScene(prisma: PrismaClient) {
   const scene = new Scenes.WizardScene<Scenes.WizardContext>(
@@ -26,6 +27,8 @@ export function sessionViewScene(prisma: PrismaClient) {
 
   (scene as any).action?.(/sess_start_(.*)/, async (ctx: any) => {
     const id = (ctx.match as any)[1];
+    // Lock teams: approve list is transformed into SessionTeam
+    await autoFormSessionTeams(prisma as any, id);
     await (prisma as any).session.update({ where: { id }, data: { status: 'STARTED' as any } });
     await ctx.answerCbQuery('Started');
     await ctx.scene.enter('admin:sessionView', { sessionId: id });

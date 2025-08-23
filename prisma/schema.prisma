@@ -153,6 +153,22 @@ model Registration {
   payment     Payment?
 }
 
+model SessionRegistration {
+  id          String   @id @default(cuid())
+  sessionId   String
+  userId      String?
+  teamId      String?
+  type        RegistrationType
+  status      RegistrationStatus @default(PENDING)
+  groupIndex  Int?
+  createdAt   DateTime @default(now())
+  approvedAt  DateTime?
+  session     Session  @relation(fields: [sessionId], references: [id])
+  user        User?    @relation(fields: [userId], references: [id])
+  team        Team?    @relation(fields: [teamId], references: [id])
+  payment     Payment?
+}
+
 enum RegistrationType {
   INDIVIDUAL
   TEAM
@@ -178,6 +194,8 @@ model Payment {
   teamId           String?
   user             User?    @relation(fields: [userId], references: [id])
   team             Team?    @relation(fields: [teamId], references: [id])
+  sessionRegistrationId String? @unique
+  sessionRegistration   SessionRegistration? @relation(fields: [sessionRegistrationId], references: [id])
 }
 
 enum PaymentStatus {
