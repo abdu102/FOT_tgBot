@@ -34,7 +34,11 @@ export function loginScene(prisma: PrismaClient) {
           return ctx.scene.leave();
         }
         const tgId = String(ctx.from?.id);
-        await prisma.user.updateMany({ where: { telegramId: tgId, id: { not: user.id } }, data: { telegramId: `unlinked_${Date.now()}_${Math.random().toString(36).slice(2)}` } });
+        // collect pending invite from any placeholder linked to this telegramId
+        const placeholders = await prisma.user.findMany({ where: { telegramId: tgId, id: { not: user.id } }, select: { id: true, pendingInviteToken: true } });
+        const tokenFromPlaceholders = placeholders.find(p => p.pendingInviteToken)?.pendingInviteToken;
+        // unlink placeholders
+        await prisma.user.updateMany({ where: { telegramId: tgId, id: { not: user.id } }, data: { telegramId: `unlinked_${Date.now()}_${Math.random().toString(36).slice(2)}`, pendingInviteToken: null } });
         await prisma.user.update({ where: { id: user.id }, data: { telegramId: tgId, isActive: true } });
         (ctx.state as any).userId = user.id;
         (ctx.state as any).isAuthenticated = true;
@@ -43,11 +47,15 @@ export function loginScene(prisma: PrismaClient) {
         // auto-join pending invite if exists
         // prefer persisted pending invite on user
         const freshUser = await prisma.user.findUnique({ where: { id: user.id } });
-        const pending = freshUser?.pendingInviteToken as string | undefined;
+        const pending = (tokenFromPlaceholders || freshUser?.pendingInviteToken) as string | undefined;
         if (pending) {
           const { tryJoinByInvite } = await import('../services/invite');
           const team = await tryJoinByInvite(prisma, pending, user.id);
           await prisma.user.update({ where: { id: user.id }, data: { pendingInviteToken: null } }).catch(() => {});
+          // also clear on placeholders just in case
+          if (placeholders.length) {
+            await prisma.user.updateMany({ where: { id: { in: placeholders.map(p => p.id) } }, data: { pendingInviteToken: null } }).catch(() => {});
+          }
           if (team) {
             await ctx.reply(`✅ Siz ${team.name} jamoasiga qo‘shildingiz!`);
             const cap = await prisma.user.findUnique({ where: { id: team.captainId } });

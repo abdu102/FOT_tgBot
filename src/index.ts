@@ -74,11 +74,13 @@ bot.start(async (ctx) => {
     } else {
       // persist pending invite on user record and ask to login/register
       const telegramId = String(ctx.from?.id);
+      // try attach to authenticated or placeholder user by telegramId
       const existing = await prisma.user.findUnique({ where: { telegramId } }).catch(() => null);
       if (existing) {
         await prisma.user.update({ where: { id: existing.id }, data: { pendingInviteToken: token } }).catch(() => {});
+      } else if ((ctx.state as any).userId) {
+        await prisma.user.update({ where: { id: (ctx.state as any).userId }, data: { pendingInviteToken: token } }).catch(() => {});
       } else {
-        // create a placeholder to hold pending token
         await prisma.user.create({ data: { telegramId, firstName: ctx.from?.first_name || 'User', lastName: ctx.from?.last_name || null, pendingInviteToken: token } }).catch(() => {});
       }
       await ctx.reply('🔗 Taklif qabul qilindi. Iltimos, avval tizimga kiring yoki ro‘yxatdan o‘ting.');
