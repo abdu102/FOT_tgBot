@@ -28,9 +28,9 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
   });
 
   bot.hears(['⚽ Haftalik o‘yinlar', '⚽ Еженедельные матчи'], async (ctx) => {
-    const isRegistered = Boolean((ctx.state as any).isRegistered);
+    const isAuth = Boolean((ctx.state as any).isAuthenticated);
     const matches = await prisma.match.findMany({ orderBy: { dateTime: 'asc' }, take: 10 });
-    if (!matches.length) return ctx.reply('Hozircha yo‘q / Пока нет', isRegistered ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx));
+    if (!matches.length) return ctx.reply('Hozircha yo‘q / Пока нет', isAuth ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx));
     for (const m of matches) {
       await ctx.reply(
         `📅 ${m.dateTime.toISOString().slice(0,16).replace('T',' ')}\n📍 ${m.location}\n💰 ${m.pricePerUser} UZS`,
@@ -74,11 +74,11 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     } as any);
   });
 
-  // Logout: deactivate account (do not delete), remove phone linkage
+  // Logout: deactivate account (do not delete), keep phone and username intact
   bot.action('profile_logout', async (ctx) => {
     const userId = (ctx.state as any).userId as string;
-    await prisma.user.update({ where: { id: userId }, data: { isActive: false, phone: null } });
-    (ctx.state as any).isRegistered = false;
+    await prisma.user.update({ where: { id: userId }, data: { isActive: false } });
+    (ctx.state as any).isAuthenticated = false;
     try { await ctx.telegram.deleteMessage(ctx.chat!.id, (ctx.callbackQuery as any).message.message_id); } catch {}
     await ctx.reply('✅ Tizimdan chiqdingiz / Вы вышли из системы', buildAuthKeyboard(ctx));
   });

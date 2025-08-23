@@ -30,9 +30,12 @@ export function loginScene(prisma: PrismaClient) {
         await ctx.reply('Login yoki parol noto‘g‘ri / Неверные данные', buildAuthKeyboard(ctx));
         return ctx.scene.leave();
       }
-      await prisma.user.update({ where: { id: user.id }, data: { telegramId: String(ctx.from?.id), isActive: true } });
+      // Do NOT overwrite other accounts on same device: if some user already linked with this telegramId, unlink it first
+      const tgId = String(ctx.from?.id);
+      await prisma.user.updateMany({ where: { telegramId: tgId, id: { not: user.id } }, data: { telegramId: `unlinked_${Date.now()}_${Math.random().toString(36).slice(2)}` } });
+      await prisma.user.update({ where: { id: user.id }, data: { telegramId: tgId, isActive: true } });
       (ctx.state as any).userId = user.id;
-      (ctx.state as any).isRegistered = Boolean(user.phone);
+      (ctx.state as any).isAuthenticated = true;
       await ctx.reply('✅ Kirish muvaffaqiyatli / Вход выполнен');
       await ctx.reply('📋 Asosiy menyu / Главное меню', (user.phone ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx)) as any);
       return ctx.scene.leave();

@@ -110,7 +110,7 @@ export function onboardingIndividualScene(prisma: PrismaClient) {
       await linkTelegramUserByPhone(prisma, userId);
       await ctx.reply('✅ Ro‘yxatdan o‘tish yakunlandi! / Регистрация завершена!', Markup.removeKeyboard());
       await ctx.reply('📋 Asosiy menyu / Главное меню', buildMainKeyboard(ctx));
-      (ctx.state as any).isRegistered = true;
+      (ctx.state as any).isAuthenticated = true;
       return ctx.scene.leave();
     },
   );

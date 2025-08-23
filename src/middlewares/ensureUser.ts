@@ -15,11 +15,12 @@ export function ensureUserMiddleware(prisma: PrismaClient): MiddlewareFn<Context
             telegramId,
             firstName,
             lastName,
+            isActive: false,
           },
         });
       }
       (ctx.state as any).userId = user.id;
-      (ctx.state as any).isRegistered = Boolean(user.phone);
+      (ctx.state as any).isAuthenticated = user.isActive === true;
       if (ctx.i18n && user.language) {
         // @ts-ignore telegraf-i18n typing
         ctx.i18n.locale(user.language);
