@@ -1,6 +1,6 @@
 {
   "start": {
-    "greet": "👋 Salom, {{name}}! Futbol ligamiz botiga xush kelibsiz!"
+    "greet": "👋 Salom! Futbol ligamiz botiga xush kelibsiz!"
   }
 }
 

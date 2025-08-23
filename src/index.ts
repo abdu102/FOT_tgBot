@@ -53,8 +53,11 @@ registerPaymentHandlers(bot, prisma);
 
 bot.start(async (ctx) => {
   const name = ctx.from?.first_name ?? 'do‘st';
+  const userId = (ctx.state as any).userId as string;
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const registered = Boolean(user?.phone);
   // @ts-ignore
-  await ctx.reply(ctx.i18n.t('start.greet', { name }), buildMainKeyboard(ctx));
+  await ctx.reply(ctx.i18n.t('start.greet', { name }), buildMainKeyboard(ctx, { showRegister: !registered }));
 });
 
 languageHandlers(bot, prisma);

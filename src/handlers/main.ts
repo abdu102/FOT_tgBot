@@ -4,6 +4,10 @@ import { buildMainKeyboard } from '../keyboards/main';
 
 export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   bot.hears(['📝 Ro‘yxatdan o‘tish', '📝 Регистрация'], async (ctx) => {
+    const u = await prisma.user.findUnique({ where: { id: (ctx.state as any).userId } });
+    if (u?.phone) {
+      return ctx.reply('Siz allaqachon ro‘yxatdan o‘tgansiz / Вы уже зарегистрированы');
+    }
     // Ask which mode
     await ctx.reply('Qaysi turda? / Как?', {
       reply_markup: {
