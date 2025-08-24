@@ -50,7 +50,10 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     if (!(ctx.state as any).isAdmin) return;
     try { await (ctx.scene as any).leave(); } catch {}
     const regs = await (prisma as any).sessionRegistration.findMany({ where: { status: 'PENDING' }, include: { session: true, user: true, team: { include: { members: { include: { user: true } } } }, payment: true }, take: 10 });
-    if (!regs.length) return ctx.reply('Pending yo‘q');
+    if (!regs.length) {
+      const kb = { inline_keyboard: [[{ text: '🧪 Seed demo pending', callback_data: 'admin_seed_pending' }], [{ text: '⬅️ Back', callback_data: 'open_admin_panel' }]] } as any;
+      return ctx.reply('Pending yo‘q', { reply_markup: kb } as any);
+    }
     for (const r of regs) {
       const who = r.type === 'TEAM' ? `TEAM ${r.team?.name} (${r.team?.members?.length || 0})` : `USER ${r.user?.firstName}`;
       const when = `${r.session?.startAt.toISOString().slice(0,16).replace('T',' ')}–${r.session?.endAt.toISOString().slice(0,16).replace('T',' ')}`;
@@ -79,6 +82,22 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     for (const m of upcoming) {
       const regs = await prisma.registration.findMany({ where: { matchId: m.id }, include: { user: true, team: true, payment: true } });
       await ctx.reply(`Match ${m.location} ${m.dateTime.toISOString()}: ${regs.length} reg`);
+    }
+  });
+
+  // Seed demo pending registrations from inline button
+  bot.action('admin_seed_pending', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    try { await ctx.answerCbQuery(); } catch {}
+    const { sessionId } = await seedTwoTeamsAndSinglesPending(prisma, { teams: 1, singles: 21 });
+    await ctx.reply(`✅ Demo pending regs created for session: ${sessionId}`);
+    // After seeding, show approvals list
+    const regs = await (prisma as any).sessionRegistration.findMany({ where: { status: 'PENDING' }, include: { session: true, user: true, team: { include: { members: { include: { user: true } } } }, payment: true }, take: 10 });
+    for (const r of regs) {
+      const who = r.type === 'TEAM' ? `TEAM ${r.team?.name} (${r.team?.members?.length || 0})` : `USER ${r.user?.firstName}`;
+      const when = `${r.session?.startAt.toISOString().slice(0,16).replace('T',' ')}–${r.session?.endAt.toISOString().slice(0,16).replace('T',' ')}`;
+      const kb = { inline_keyboard: [[{ text: '✅ Approve', callback_data: `sess_approve_${r.id}` }], [{ text: '❌ Reject', callback_data: `sess_reject_${r.id}` }]] } as any;
+      await ctx.reply(`🧾 ${who}\n🗓️ ${when}\n💰 ${r.payment?.amount ?? 0} (${r.payment?.status})`, { reply_markup: kb } as any);
     }
   });
 
