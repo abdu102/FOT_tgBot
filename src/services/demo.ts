@@ -47,3 +47,32 @@ export async function createDemoSessionWithTeams(prisma: PrismaClient) {
   // Do not auto-create matches; admin will add matches manually
   return { sessionId: session.id };
 }
+
+export async function seedTwoTeamsAndSinglesPending(prisma: PrismaClient, opts?: { teams?: number; singles?: number }) {
+  const teams = opts?.teams ?? 1; // number of full 7-player teams
+  const singles = opts?.singles ?? 21; // number of single users
+  const startAt = new Date();
+  startAt.setDate(startAt.getDate() + 1);
+  startAt.setHours(19, 0, 0, 0);
+  const endAt = new Date(startAt.getTime() + 2 * 60 * 60 * 1000);
+  const session = await (prisma as any).session.create({ data: { startAt, endAt, type: 'FIVE_V_FIVE', status: 'PLANNED', maxTeams: 4, stadium: 'Demo Arena', place: 'Tashkent' } });
+
+  // Create full 7-player teams as pending registrations
+  let cursor = 1;
+  for (let i = 1; i <= teams; i++) {
+    const t = await ensureTeam(prisma, i, cursor, 7);
+    cursor += 7;
+    const reg = await (prisma as any).sessionRegistration.create({ data: { sessionId: session.id, teamId: t.id, type: 'TEAM', status: 'PENDING' } });
+    const amount = 40000 * 7;
+    await (prisma as any).payment.create({ data: { sessionRegistrationId: reg.id, amount, method: process.env.PAYMENT_METHOD || 'MANUAL', status: 'PENDING', teamId: t.id } });
+  }
+
+  // Create singles as pending registrations
+  for (let i = 0; i < singles; i++) {
+    const u = await ensureUser(prisma, 1000 + i);
+    const reg = await (prisma as any).sessionRegistration.create({ data: { sessionId: session.id, userId: u.id, type: 'INDIVIDUAL', status: 'PENDING' } });
+    await (prisma as any).payment.create({ data: { sessionRegistrationId: reg.id, amount: 40000, method: process.env.PAYMENT_METHOD || 'MANUAL', status: 'PENDING', userId: u.id } });
+  }
+
+  return { sessionId: session.id };
+}

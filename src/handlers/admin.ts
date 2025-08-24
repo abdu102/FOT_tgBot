@@ -1,6 +1,6 @@
 import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
-import { createDemoSessionWithTeams } from '../services/demo';
+import { createDemoSessionWithTeams, seedTwoTeamsAndSinglesPending } from '../services/demo';
 import { computeSessionTable, getSessionTopPlayers } from '../services/session';
 import { allocateIndividualToSession, ensureTeamInSession } from '../services/nabor';
 
@@ -43,6 +43,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   });
   bot.hears('🏆 Winner & MoM', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.scene.enter('admin:winners'); });
   bot.hears('🧪 Demo: create session + teams', async (ctx) => { if (!(ctx.state as any).isAdmin) return; const { sessionId } = await createDemoSessionWithTeams(prisma); await ctx.reply(`✅ Demo session created: ${sessionId}`); });
+  bot.hears('🧪 Demo: pending regs', async (ctx) => { if (!(ctx.state as any).isAdmin) return; const { sessionId } = await seedTwoTeamsAndSinglesPending(prisma, { teams: 1, singles: 21 }); await ctx.reply(`✅ Demo pending regs created for session: ${sessionId}`); });
 
   bot.action('open_admin_panel', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
