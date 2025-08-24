@@ -89,15 +89,27 @@ bot.start(async (ctx) => {
       await ctx.reply('🔗 Taklif qabul qilindi. Iltimos, avval tizimga kiring yoki ro‘yxatdan o‘ting.');
     }
   }
-  // @ts-ignore
-  await ctx.reply(
-    ctx.i18n.t('start.greet', { name }),
-    isAuthenticated ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx, { showRegister: !hasAccount })
-  );
   if (isAdmin) {
-    // Remove bottom auth keyboard for admins and provide an admin-only reply keyboard
-    try { await ctx.reply(' ', { reply_markup: { remove_keyboard: true } } as any); } catch {}
+    // For admins, do NOT show login/register keyboard. Show admin reply keyboard instead.
+    const adminKeyboard = {
+      keyboard: [
+        [{ text: '🗓️ Sessiyalar' }, { text: '➕ Create session' }],
+        [{ text: '🧾 Ro‘yxatlar' }, { text: '✅ Tasdiqlash' }],
+        [{ text: '🤖 Auto-formation' }, { text: '🏆 Winner & MoM' }],
+        [{ text: '🧪 Demo: create session + teams' }],
+      ],
+      resize_keyboard: true,
+      one_time_keyboard: false,
+    } as any;
+    // @ts-ignore
+    await ctx.reply(ctx.i18n.t('start.greet', { name }), { reply_markup: adminKeyboard } as any);
     await ctx.reply('🛡 Admin detected');
+  } else {
+    // @ts-ignore
+    await ctx.reply(
+      ctx.i18n.t('start.greet', { name }),
+      isAuthenticated ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx, { showRegister: !hasAccount })
+    );
   }
 });
 
