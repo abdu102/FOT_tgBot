@@ -12,7 +12,9 @@ export function sessionViewScene(prisma: PrismaClient) {
       if (!sid) { await ctx.reply('Session topilmadi'); return ctx.scene.leave(); }
       const s = await (prisma as any).session.findUnique({ where: { id: sid }, include: { matches: true, teams: { include: { team: true } } } });
       if (!s) { await ctx.reply('Session topilmadi'); return ctx.scene.leave(); }
+      const typeLabel = (s as any).type === 'SIX_V_SIX' ? '6v6' : '5v5';
       const header = `🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}  [${s.status}]`;
+      const info = [`🏟️ ${((s as any).stadium || '-')}`, `📍 ${((s as any).place || '-')}`, `🧩 ${typeLabel}`, `👥 ${s.teams.length}/${(s as any).maxTeams || 4}`].join('\n');
       const table = s.teams.map((t: any) => `${t.team.name}: ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`).join('\n') || 'Hali jamoalar yo‘q';
       const actions: any[] = [];
       if (s.status === 'PLANNED') {
@@ -24,9 +26,9 @@ export function sessionViewScene(prisma: PrismaClient) {
         actions.push([{ text: '📊 Statistika kiritish', callback_data: `sess_stats_entry_${s.id}` }]);
       }
       actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
-      actions.push([{ text: '⬅️ Orqaga', callback_data: 'open_admin_panel' }]);
+      actions.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
       try { await ctx.deleteMessage(); } catch {}
-      await ctx.reply(`${header}\n\n${table}`, { reply_markup: { inline_keyboard: actions } } as any);
+      await ctx.reply(`${header}\n${info}\n\n${table}`, { reply_markup: { inline_keyboard: actions } } as any);
       return;
     }
   );
