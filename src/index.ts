@@ -137,11 +137,24 @@ async function repairDbEnums() {
     await prisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "RegistrationType" AS ENUM ('INDIVIDUAL','TEAM'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
     await prisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "RegistrationStatus" AS ENUM ('PENDING','APPROVED','REJECTED','CANCELLED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
     await prisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "PaymentStatus" AS ENUM ('PENDING','CONFIRMED','FAILED','REFUNDED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
-    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Registration" ALTER COLUMN "type" TYPE "RegistrationType" USING "type"::text::"RegistrationType"; EXCEPTION WHEN others THEN NULL; END $$;`);
-    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Registration" ALTER COLUMN "status" TYPE "RegistrationStatus" USING "status"::text::"RegistrationStatus"; EXCEPTION WHEN others THEN NULL; END $$;`);
-    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "SessionRegistration" ALTER COLUMN "type" TYPE "RegistrationType" USING "type"::text::"RegistrationType"; EXCEPTION WHEN others THEN NULL; END $$;`);
-    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "SessionRegistration" ALTER COLUMN "status" TYPE "RegistrationStatus" USING "status"::text::"RegistrationStatus"; EXCEPTION WHEN others THEN NULL; END $$;`);
-    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Payment" ALTER COLUMN "status" TYPE "PaymentStatus" USING "status"::text::"PaymentStatus"; EXCEPTION WHEN others THEN NULL; END $$;`);
+    // Registration.type
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Registration" ALTER COLUMN "type" DROP DEFAULT; EXCEPTION WHEN undefined_column THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Registration" ALTER COLUMN "type" TYPE "RegistrationType" USING (CASE WHEN "type" IS NULL THEN 'INDIVIDUAL'::"RegistrationType" ELSE "type"::"RegistrationType" END); EXCEPTION WHEN others THEN NULL; END $$;`);
+    // Registration.status
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Registration" ALTER COLUMN "status" DROP DEFAULT; EXCEPTION WHEN undefined_column THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Registration" ALTER COLUMN "status" TYPE "RegistrationStatus" USING (CASE WHEN "status" IS NULL THEN 'PENDING'::"RegistrationStatus" ELSE "status"::"RegistrationStatus" END); EXCEPTION WHEN others THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Registration" ALTER COLUMN "status" SET DEFAULT 'PENDING'::"RegistrationStatus"; EXCEPTION WHEN others THEN NULL; END $$;`);
+    // SessionRegistration.type
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "SessionRegistration" ALTER COLUMN "type" DROP DEFAULT; EXCEPTION WHEN undefined_column THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "SessionRegistration" ALTER COLUMN "type" TYPE "RegistrationType" USING (CASE WHEN "type" IS NULL THEN 'INDIVIDUAL'::"RegistrationType" ELSE "type"::"RegistrationType" END); EXCEPTION WHEN others THEN NULL; END $$;`);
+    // SessionRegistration.status
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "SessionRegistration" ALTER COLUMN "status" DROP DEFAULT; EXCEPTION WHEN undefined_column THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "SessionRegistration" ALTER COLUMN "status" TYPE "RegistrationStatus" USING (CASE WHEN "status" IS NULL THEN 'PENDING'::"RegistrationStatus" ELSE "status"::"RegistrationStatus" END); EXCEPTION WHEN others THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "SessionRegistration" ALTER COLUMN "status" SET DEFAULT 'PENDING'::"RegistrationStatus"; EXCEPTION WHEN others THEN NULL; END $$;`);
+    // Payment.status
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Payment" ALTER COLUMN "status" DROP DEFAULT; EXCEPTION WHEN undefined_column THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Payment" ALTER COLUMN "status" TYPE "PaymentStatus" USING (CASE WHEN "status" IS NULL THEN 'PENDING'::"PaymentStatus" ELSE "status"::"PaymentStatus" END); EXCEPTION WHEN others THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Payment" ALTER COLUMN "status" SET DEFAULT 'PENDING'::"PaymentStatus"; EXCEPTION WHEN others THEN NULL; END $$;`);
     console.log('DB enum repair completed');
   } catch (e) {
     console.error('DB enum repair failed', e);
