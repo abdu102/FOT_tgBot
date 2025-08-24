@@ -26,9 +26,24 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   });
 
   // Map text buttons from reply keyboard to actions
-  bot.hears('🗓️ Sessiyalar', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.scene.enter('admin:sessions'); });
-  bot.hears('➕ Create session', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.scene.enter('admin:sessions'); });
-  bot.hears('🧾 Ro‘yxatlar', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.callbackQuery && ctx.answerCbQuery(); /* optional */ });
+  bot.hears('🗓️ Sessiyalar', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    try { await (ctx.scene as any).leave(); } catch {}
+    await ctx.scene.enter('admin:sessions');
+  });
+  bot.hears('➕ Create session', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    try { await (ctx.scene as any).leave(); } catch {}
+    await ctx.scene.enter('admin:sessions');
+  });
+  bot.hears('🧾 Ro‘yxatlar', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const upcoming = await prisma.match.findMany({ orderBy: { dateTime: 'asc' }, take: 3 });
+    for (const m of upcoming) {
+      const regs = await prisma.registration.findMany({ where: { matchId: m.id }, include: { user: true, team: true, payment: true } });
+      await ctx.reply(`Match ${m.location} ${m.dateTime.toISOString()}: ${regs.length} reg`);
+    }
+  });
   bot.hears('✅ Tasdiqlash', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     const regs = await (prisma as any).sessionRegistration.findMany({ where: { status: 'PENDING' }, include: { session: true, user: true, team: { include: { members: { include: { user: true } } } }, payment: true }, take: 10 });
