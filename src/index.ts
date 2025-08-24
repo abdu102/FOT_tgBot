@@ -136,33 +136,34 @@ async function startBot() {
   app.use(express.json());
   app.get('/', (_req: express.Request, res: express.Response) => res.status(200).send('ok'));
   app.get('/health', (_req: express.Request, res: express.Response) => res.status(200).send('ok'));
+  // Always start HTTP server first so healthcheck responds even if bot launch fails
+  app.listen(port, () => console.log(`HTTP server on :${port}`));
 
   if (WEBHOOK_URL) {
     const path = `/telegraf/${BOT_TOKEN}`;
     const full = `${WEBHOOK_URL.replace(/\/$/, '')}${path}`;
     app.use(bot.webhookCallback(path));
-    app.listen(port, () => console.log(`Webhook server on :${port} url=${full}`));
     try {
       await bot.telegram.setWebhook(full, { drop_pending_updates: true });
+      console.log('Webhook set to', full);
     } catch (err) {
-      console.error('setWebhook failed, running server without webhook:', err);
+      console.error('setWebhook failed, continuing with server only:', err);
     }
-  } else {
-    try {
-      await bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
-      await bot.launch({ dropPendingUpdates: true });
-      console.log('Bot launched with polling');
-      process.once('SIGINT', () => bot.stop('SIGINT'));
-      process.once('SIGTERM', () => bot.stop('SIGTERM'));
-    } catch (e: any) {
-      // If another instance is polling, keep the web server alive for healthchecks
-      if (e?.response?.error_code === 409) {
-        console.error('Polling conflict (409): another instance is running. Keeping server alive.');
-      } else {
-        throw e;
-      }
+    return;
+  }
+
+  try {
+    await bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
+    await bot.launch({ dropPendingUpdates: true });
+    console.log('Bot launched with polling');
+    process.once('SIGINT', () => bot.stop('SIGINT'));
+    process.once('SIGTERM', () => bot.stop('SIGTERM'));
+  } catch (e: any) {
+    if (e?.response?.error_code === 409) {
+      console.error('Polling conflict (409): another instance is running. Keeping server alive.');
+    } else {
+      console.error('Polling launch failed:', e);
     }
-    app.listen(port, () => console.log(`Health server on :${port}`));
   }
 }
 
