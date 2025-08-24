@@ -12,7 +12,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
         [{ text: '🗓️ Sessiyalar' }, { text: '➕ Create session' }],
         [{ text: '🧾 Ro‘yxatlar' }, { text: '✅ Tasdiqlash' }],
         [{ text: '🏆 Winner & MoM' }],
-        [{ text: '🧪 Demo: create session + teams' }],
+        [{ text: '🧪 Demo: create session + teams' }, { text: '🧪 Demo: pending regs' }],
       ],
       resize_keyboard: true,
       one_time_keyboard: false,
