@@ -29,7 +29,18 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.hears('🗓️ Sessiyalar', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.scene.enter('admin:sessions'); });
   bot.hears('➕ Create session', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.scene.enter('admin:sessions'); });
   bot.hears('🧾 Ro‘yxatlar', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.callbackQuery && ctx.answerCbQuery(); /* optional */ });
-  bot.hears('✅ Tasdiqlash', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.callbackQuery && ctx.answerCbQuery(); /* optional */ });
+  bot.hears('✅ Tasdiqlash', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const regs = await (prisma as any).sessionRegistration.findMany({ where: { status: 'PENDING' }, include: { session: true, user: true, team: { include: { members: { include: { user: true } } } }, payment: true }, take: 10 });
+    if (!regs.length) return ctx.reply('Pending yo‘q');
+    for (const r of regs) {
+      const who = r.type === 'TEAM' ? `TEAM ${r.team?.name} (${r.team?.members?.length || 0})` : `USER ${r.user?.firstName}`;
+      const when = `${r.session?.startAt.toISOString().slice(0,16).replace('T',' ')}–${r.session?.endAt.toISOString().slice(0,16).replace('T',' ')}`;
+      const kb = { inline_keyboard: [[{ text: '✅ Approve', callback_data: `sess_approve_${r.id}` }], [{ text: '❌ Reject', callback_data: `sess_reject_${r.id}` }]] } as any;
+      await ctx.reply(`🧾 ${who}\n🗓️ ${when}\n💰 ${r.payment?.amount ?? 0} (${r.payment?.status})` , { reply_markup: kb } as any);
+      if (r.payment?.receiptFileId) { try { await ctx.replyWithPhoto(r.payment.receiptFileId); } catch {} }
+    }
+  });
   bot.hears('🤖 Auto-formation', async (ctx) => { if (!(ctx.state as any).isAdmin) return; const next = await prisma.match.findFirst({ orderBy: { dateTime: 'asc' } }); if (next) { await autoFormTeams(prisma, next.id); await ctx.reply('🤖 Done'); } else { await ctx.reply('Match yo‘q / Нет матча'); } });
   bot.hears('🏆 Winner & MoM', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.scene.enter('admin:winners'); });
   bot.hears('🧪 Demo: create session + teams', async (ctx) => { if (!(ctx.state as any).isAdmin) return; const { sessionId } = await createDemoSessionWithTeams(prisma); await ctx.reply(`✅ Demo session created: ${sessionId}`); });

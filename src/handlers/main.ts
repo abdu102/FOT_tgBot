@@ -19,17 +19,72 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
 
   bot.hears(['⚽ Haftalik o‘yinlar', '⚽ Еженедельные матчи'], async (ctx) => {
     const isAuth = Boolean((ctx.state as any).isAuthenticated);
-    const sessions = await (prisma as any).session.findMany({ orderBy: { startAt: 'asc' }, take: 10 });
-    if (!sessions.length) return ctx.reply('Hozircha yo‘q / Пока нет', isAuth ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx));
-    for (const s of sessions) {
-      const inline = [
-        [{ text: '✍️ Shaxsiy / Индивидуально', callback_data: `sess_signup_ind_${s.id}` }],
-      ];
-      const team = await prisma.team.findFirst({ where: { captainId: (ctx.state as any).userId } });
-      if (team) inline.push([{ text: '👥 Jamoa bilan / Командой', callback_data: `sess_signup_team_${s.id}` }]);
-      const typeLabel = (s as any).type === 'SIX_V_SIX' ? '6v6' : '5v5';
-      await ctx.reply(`🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}\n🧩 ${typeLabel} | Max 4 jamoa\nHolat: ${(s as any).status}`, { reply_markup: { inline_keyboard: inline } } as any);
+    await ctx.reply('Ro‘yxatdan o‘tish turi?', { reply_markup: { inline_keyboard: [[{ text: '✍️ Shaxsiy', callback_data: 'sr_type_ind' }, { text: '👥 Jamoa', callback_data: 'sr_type_team' }]] } } as any);
+  });
+
+  // Session registration flow
+  bot.action('sr_type_ind', async (ctx) => {
+    (ctx.session as any).srType = 'INDIVIDUAL';
+    await ctx.reply('Kunni tanlang (YYYY-MM-DD)');
+  });
+  bot.action('sr_type_team', async (ctx) => {
+    (ctx.session as any).srType = 'TEAM';
+    await ctx.reply('Kunni tanlang (YYYY-MM-DD)');
+  });
+
+  bot.on('text', async (ctx, next) => {
+    const sess = (ctx.session as any) || {};
+    if (sess.srType && !sess.srDay) {
+      const day = (ctx.message as any).text.trim();
+      sess.srDay = day;
+      const startDay = new Date(`${day}T00:00:00`);
+      const endDay = new Date(`${day}T23:59:59`);
+      const list = await (prisma as any).session.findMany({ where: { startAt: { gte: startDay }, endAt: { lte: endDay }, status: 'PLANNED' }, orderBy: { startAt: 'asc' } });
+      if (!list.length) { await ctx.reply('Ushbu kunda sessiya yo‘q'); sess.srType = undefined; sess.srDay = undefined; return; }
+      const rows = list.map((s: any) => [{ text: `${s.startAt.toISOString().slice(11,16)}–${s.endAt.toISOString().slice(11,16)} (${s.type})`, callback_data: `sr_pick_${s.id}` }]);
+      await ctx.reply('Sessiyani tanlang', { reply_markup: { inline_keyboard: rows } } as any);
+      return;
     }
+    if (sess.awaitReceiptForRegId) {
+      // ignore plain text while awaiting photo
+      return ctx.reply('Iltimos, to‘lov cheki suratini yuboring');
+    }
+    return next();
+  });
+
+  bot.action(/sr_pick_(.*)/, async (ctx) => {
+    const sessionId = (ctx.match as any)[1] as string;
+    const sess = (ctx.session as any) || {};
+    const s = await (prisma as any).session.findUnique({ where: { id: sessionId } });
+    if (!s) return;
+    const type = sess.srType === 'TEAM' ? 'TEAM' : 'INDIVIDUAL';
+    let reg: any = null;
+    if (type === 'INDIVIDUAL') {
+      reg = await (prisma as any).sessionRegistration.create({ data: { sessionId, userId: (ctx.state as any).userId, type, status: 'PENDING' } });
+    } else {
+      const team = await prisma.team.findFirst({ where: { captainId: (ctx.state as any).userId } });
+      if (!team) return ctx.reply('Avval jamoa yarating: /team');
+      reg = await (prisma as any).sessionRegistration.create({ data: { sessionId, teamId: team.id, type, status: 'PENDING' } });
+    }
+    const count = type === 'TEAM' && reg?.teamId ? (await prisma.teamMember.count({ where: { teamId: reg.teamId } })) : 1;
+    const amount = 40000 * count;
+    const pay = await (prisma as any).payment.create({ data: { sessionRegistrationId: reg.id, amount, method: process.env.PAYMENT_METHOD || 'MANUAL', status: 'PENDING', userId: (ctx.state as any).userId, teamId: reg.teamId || null } });
+    sess.awaitReceiptForRegId = reg.id;
+    await ctx.reply(`To‘lov summasi: ${amount} UZS\n${require('../services/payments').paymentInstructions()}`);
+    await ctx.reply('Iltimos, to‘lov chekini surat qilib yuboring');
+  });
+
+  // Photo upload for payment receipt
+  bot.on('photo', async (ctx, next) => {
+    const sess = (ctx.session as any) || {};
+    const regId = sess.awaitReceiptForRegId as string | undefined;
+    if (!regId) return next();
+    const photos = (ctx.message as any).photo as Array<{ file_id: string }>;
+    const fileId = photos?.[photos.length - 1]?.file_id;
+    if (!fileId) return ctx.reply('Rasm topilmadi');
+    await (prisma as any).payment.update({ where: { sessionRegistrationId: regId }, data: { receiptFileId: fileId } });
+    sess.awaitReceiptForRegId = undefined; sess.srType = undefined; sess.srDay = undefined;
+    await ctx.reply('So‘rov yuborildi. Iltimos, tasdiqlashni kuting.');
   });
 
   bot.action(/sess_signup_ind_(.*)/, async (ctx) => {

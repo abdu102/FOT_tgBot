@@ -196,6 +196,7 @@ model Payment {
   status                PaymentStatus        @default(PENDING)
   createdAt             DateTime             @default(now())
   confirmedAt           DateTime?
+  receiptFileId         String?
   registration          Registration         @relation(fields: [registrationId], references: [id])
   userId                String?
   teamId                String?
