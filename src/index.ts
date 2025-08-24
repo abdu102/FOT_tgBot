@@ -132,6 +132,22 @@ initAdmin(prisma);
 const port = parseInt(process.env.PORT || '3000', 10);
 const WEBHOOK_URL = process.env.WEBHOOK_URL || process.env.RAILWAY_STATIC_URL; // auto-use Railway static URL if present
 
+async function repairDbEnums() {
+  try {
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "RegistrationType" AS ENUM ('INDIVIDUAL','TEAM'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "RegistrationStatus" AS ENUM ('PENDING','APPROVED','REJECTED','CANCELLED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "PaymentStatus" AS ENUM ('PENDING','CONFIRMED','FAILED','REFUNDED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Registration" ALTER COLUMN "type" TYPE "RegistrationType" USING "type"::text::"RegistrationType"; EXCEPTION WHEN others THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Registration" ALTER COLUMN "status" TYPE "RegistrationStatus" USING "status"::text::"RegistrationStatus"; EXCEPTION WHEN others THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "SessionRegistration" ALTER COLUMN "type" TYPE "RegistrationType" USING "type"::text::"RegistrationType"; EXCEPTION WHEN others THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "SessionRegistration" ALTER COLUMN "status" TYPE "RegistrationStatus" USING "status"::text::"RegistrationStatus"; EXCEPTION WHEN others THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Payment" ALTER COLUMN "status" TYPE "PaymentStatus" USING "status"::text::"PaymentStatus"; EXCEPTION WHEN others THEN NULL; END $$;`);
+    console.log('DB enum repair completed');
+  } catch (e) {
+    console.error('DB enum repair failed', e);
+  }
+}
+
 async function startBot() {
   const app = express();
   app.use(express.json());
@@ -156,6 +172,11 @@ async function startBot() {
   // Run migrations in background so DB is up-to-date without blocking healthcheck
   if (process.env.AUTO_MIGRATE !== '0') {
     try {
+      // First, ensure enums/columns exist to unblock Prisma
+      repairDbEnums().catch(() => {});
+      // If a previous migration failed, mark it rolled back then applied (best-effort)
+      try { spawn('npx', ['prisma', 'migrate', 'resolve', '--rolled-back', '0013_enums_registration_payment'], { stdio: 'inherit' }); } catch {}
+      try { spawn('npx', ['prisma', 'migrate', 'resolve', '--applied', '0013_enums_registration_payment'], { stdio: 'inherit' }); } catch {}
       const child = spawn('npx', ['prisma', 'migrate', 'deploy'], { stdio: 'inherit' });
       child.on('exit', (code) => console.log('migrate deploy finished with code', code));
     } catch (e) {
