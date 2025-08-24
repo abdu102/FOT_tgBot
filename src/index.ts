@@ -187,9 +187,6 @@ async function startBot() {
     try {
       // First, ensure enums/columns exist to unblock Prisma
       repairDbEnums().catch(() => {});
-      // If a previous migration failed, mark it rolled back then applied (best-effort)
-      try { spawn('npx', ['prisma', 'migrate', 'resolve', '--rolled-back', '0013_enums_registration_payment'], { stdio: 'inherit' }); } catch {}
-      try { spawn('npx', ['prisma', 'migrate', 'resolve', '--applied', '0013_enums_registration_payment'], { stdio: 'inherit' }); } catch {}
       const child = spawn('npx', ['prisma', 'migrate', 'deploy'], { stdio: 'inherit' });
       child.on('exit', (code) => console.log('migrate deploy finished with code', code));
     } catch (e) {
