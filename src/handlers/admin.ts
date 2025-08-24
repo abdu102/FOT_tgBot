@@ -22,6 +22,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
 
   bot.command('admin', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
+    try { await (ctx.scene as any).leave(); } catch {}
     await sendAdminPanel(ctx);
   });
 
@@ -38,6 +39,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   });
   bot.hears('🧾 Ro‘yxatlar', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
+    try { await (ctx.scene as any).leave(); } catch {}
     const upcoming = await prisma.match.findMany({ orderBy: { dateTime: 'asc' }, take: 3 });
     for (const m of upcoming) {
       const regs = await prisma.registration.findMany({ where: { matchId: m.id }, include: { user: true, team: true, payment: true } });
@@ -46,6 +48,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   });
   bot.hears('✅ Tasdiqlash', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
+    try { await (ctx.scene as any).leave(); } catch {}
     const regs = await (prisma as any).sessionRegistration.findMany({ where: { status: 'PENDING' }, include: { session: true, user: true, team: { include: { members: { include: { user: true } } } }, payment: true }, take: 10 });
     if (!regs.length) return ctx.reply('Pending yo‘q');
     for (const r of regs) {
@@ -56,8 +59,9 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
       if (r.payment?.receiptFileId) { try { await ctx.replyWithPhoto(r.payment.receiptFileId); } catch {} }
     }
   });
-  bot.hears('🏆 Winner & MoM', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.scene.enter('admin:winners'); });
-  bot.hears('🧪 Demo: create session + teams', async (ctx) => { if (!(ctx.state as any).isAdmin) return; const { sessionId } = await createDemoSessionWithTeams(prisma); await ctx.reply(`✅ Demo session created: ${sessionId}`); });
+  bot.hears('🏆 Winner & MoM', async (ctx) => { if ((ctx.state as any).isAdmin) { try { await (ctx.scene as any).leave(); } catch {} await ctx.scene.enter('admin:winners'); } });
+  bot.hears('🧪 Demo: create session + teams', async (ctx) => { if (!(ctx.state as any).isAdmin) return; try { await (ctx.scene as any).leave(); } catch {} const { sessionId } = await createDemoSessionWithTeams(prisma); await ctx.reply(`✅ Demo session created: ${sessionId}`); });
+  bot.hears('🧪 Demo: pending regs', async (ctx) => { if (!(ctx.state as any).isAdmin) return; try { await (ctx.scene as any).leave(); } catch {} const { sessionId } = await seedTwoTeamsAndSinglesPending(prisma, { teams: 1, singles: 21 }); await ctx.reply(`✅ Demo pending regs created for session: ${sessionId}`); });
   bot.hears('🧪 Demo: pending regs', async (ctx) => { if (!(ctx.state as any).isAdmin) return; const { sessionId } = await seedTwoTeamsAndSinglesPending(prisma, { teams: 1, singles: 21 }); await ctx.reply(`✅ Demo pending regs created for session: ${sessionId}`); });
 
   bot.action('open_admin_panel', async (ctx) => {
