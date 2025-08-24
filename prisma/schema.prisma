@@ -112,6 +112,8 @@ model Session {
   status                SessionStatus         @default(PLANNED)
   type                  MatchType             @default(FIVE_V_FIVE)
   maxTeams              Int                   @default(4)
+  stadium               String?
+  place                 String?
   winnerTeamId          String?
   winnerTeam            Team?                 @relation("SessionWinnerTeam", fields: [winnerTeamId], references: [id])
   manOfTheSessionUserId String?

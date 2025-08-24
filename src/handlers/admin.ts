@@ -6,27 +6,33 @@ import { computeSessionTable, getSessionTopPlayers } from '../services/session';
 
 export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   const sendAdminPanel = async (ctx: any) => {
-    // Remove reply keyboard (login/registration buttons)
-    try { await ctx.reply(' ', { reply_markup: { remove_keyboard: true } } as any); } catch {}
-    await ctx.reply('Admin panel', {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '🗓️ Sessiyalar', callback_data: 'admin_sessions' }],
-          [{ text: '➕ Create session', callback_data: 'admin_create_session' }],
-          [{ text: '🧾 Ro‘yxatlar', callback_data: 'admin_registrations' }],
-          [{ text: '✅ Tasdiqlash', callback_data: 'admin_approve' }],
-          [{ text: '🤖 Auto-formation', callback_data: 'admin_autoform' }],
-          [{ text: '🏆 Winner & MoM', callback_data: 'admin_winners' }],
-          [{ text: '🧪 Demo: create session + teams', callback_data: 'admin_demo_seed' }],
-        ],
-      },
-    } as any);
+    // Show admin actions in the bottom reply keyboard (not inline)
+    const keyboard = {
+      keyboard: [
+        [{ text: '🗓️ Sessiyalar' }, { text: '➕ Create session' }],
+        [{ text: '🧾 Ro‘yxatlar' }, { text: '✅ Tasdiqlash' }],
+        [{ text: '🤖 Auto-formation' }, { text: '🏆 Winner & MoM' }],
+        [{ text: '🧪 Demo: create session + teams' }],
+      ],
+      resize_keyboard: true,
+      one_time_keyboard: false,
+    } as any;
+    await ctx.reply('Admin panel', { reply_markup: keyboard } as any);
   };
 
   bot.command('admin', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     await sendAdminPanel(ctx);
   });
+
+  // Map text buttons from reply keyboard to actions
+  bot.hears('🗓️ Sessiyalar', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.scene.enter('admin:sessions'); });
+  bot.hears('➕ Create session', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.scene.enter('admin:sessions'); });
+  bot.hears('🧾 Ro‘yxatlar', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.callbackQuery && ctx.answerCbQuery(); /* optional */ });
+  bot.hears('✅ Tasdiqlash', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.callbackQuery && ctx.answerCbQuery(); /* optional */ });
+  bot.hears('🤖 Auto-formation', async (ctx) => { if (!(ctx.state as any).isAdmin) return; const next = await prisma.match.findFirst({ orderBy: { dateTime: 'asc' } }); if (next) { await autoFormTeams(prisma, next.id); await ctx.reply('🤖 Done'); } else { await ctx.reply('Match yo‘q / Нет матча'); } });
+  bot.hears('🏆 Winner & MoM', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.scene.enter('admin:winners'); });
+  bot.hears('🧪 Demo: create session + teams', async (ctx) => { if (!(ctx.state as any).isAdmin) return; const { sessionId } = await createDemoSessionWithTeams(prisma); await ctx.reply(`✅ Demo session created: ${sessionId}`); });
 
   bot.action('open_admin_panel', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;

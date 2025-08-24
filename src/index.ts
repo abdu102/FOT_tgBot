@@ -95,9 +95,9 @@ bot.start(async (ctx) => {
     isAuthenticated ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx, { showRegister: !hasAccount })
   );
   if (isAdmin) {
-    await ctx.reply('🛡 Admin detected', {
-      reply_markup: { inline_keyboard: [[{ text: '📋 Open admin panel', callback_data: 'open_admin_panel' }]] },
-    } as any);
+    // Remove bottom auth keyboard for admins and provide an admin-only reply keyboard
+    try { await ctx.reply(' ', { reply_markup: { remove_keyboard: true } } as any); } catch {}
+    await ctx.reply('🛡 Admin detected');
   }
 });
 

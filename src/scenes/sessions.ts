@@ -102,6 +102,24 @@ export function sessionsScene(prisma: PrismaClient) {
       await ctx.reply('Turi? (5v5 / 6v6)', { reply_markup: kb } as any);
       return;
     }
+    if (sess.sessCreateDay && sess.sessCreateStart && sess.sessCreateEnd && sess.awaitingStadium) {
+      sess.stadium = (ctx.message as any).text.trim();
+      sess.awaitingStadium = false;
+      sess.awaitingPlace = true;
+      await ctx.reply('Stadion joyi / Place?');
+      return;
+    }
+    if (sess.sessCreateDay && sess.sessCreateStart && sess.sessCreateEnd && sess.awaitingPlace) {
+      sess.place = (ctx.message as any).text.trim();
+      sess.awaitingPlace = false;
+      await ctx.reply('Turi tanlash');
+      const kb = { inline_keyboard: [[
+        { text: '5v5', callback_data: 'sess_type_5' },
+        { text: '6v6', callback_data: 'sess_type_6' }
+      ]] };
+      await ctx.reply('Turi? (5v5 / 6v6)', { reply_markup: kb } as any);
+      return;
+    }
     return next();
   });
 
@@ -111,10 +129,13 @@ export function sessionsScene(prisma: PrismaClient) {
     if (!sess.sessCreateDay || !sess.sessCreateStart || !sess.sessCreateEnd) return ctx.answerCbQuery();
     const start = `${sess.sessCreateDay}T${sess.sessCreateStart}:00`;
     const type = t === '6' ? 'SIX_V_SIX' : 'FIVE_V_FIVE';
-    const s = await (prisma as any).session.create({ data: { startAt: new Date(start), endAt: new Date(sess.sessCreateEnd), type } });
+    // Ensure we have stadium/place collected
+    if (!sess.stadium) { sess.awaitingStadium = true; await ctx.reply('Stadion nomi?'); return; }
+    if (!sess.place) { sess.awaitingPlace = true; await ctx.reply('Stadion joyi / Place?'); return; }
+    const s = await (prisma as any).session.create({ data: { startAt: new Date(start), endAt: new Date(sess.sessCreateEnd), type, stadium: sess.stadium, place: sess.place } });
     sess.sessCreateDone = true; sess.sessCreateDay = undefined; sess.sessCreateStart = undefined; sess.sessCreateEnd = undefined; sess.sessCreateType = undefined;
     await ctx.answerCbQuery('Yaratildi');
-    await ctx.reply('✅ Sessiya yaratildi', { reply_markup: { inline_keyboard: [[{ text: 'Ochil', callback_data: `sess_open_${s.id}` }]] } } as any);
+    await ctx.reply('✅ Sessiya yaratildi', { reply_markup: { inline_keyboard: [[{ text: 'Ochil', callback_data: `sess_open_${s.id}` }], [{ text: '⬅️ Menyu', callback_data: 'open_admin_panel' }]] } } as any);
   });
 
   (scene as any).action?.('sess_open_back', async (ctx: any) => {
