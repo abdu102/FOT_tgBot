@@ -5,6 +5,7 @@ import I18n from 'telegraf-i18n';
 import path from 'path';
 import fs from 'fs';
 import express from 'express';
+import { spawn } from 'child_process';
 import { buildMainKeyboard, buildAuthKeyboard } from './keyboards/main';
 import { registerScenes } from './scenes';
 import { authMiddleware } from './middlewares/auth';
@@ -150,6 +151,16 @@ async function startBot() {
     app.listen(port, () => console.log(`HTTP server on :${port}`));
   } catch (e) {
     console.error('HTTP listen failed:', e);
+  }
+
+  // Run migrations in background so DB is up-to-date without blocking healthcheck
+  if (process.env.AUTO_MIGRATE !== '0') {
+    try {
+      const child = spawn('npx', ['prisma', 'migrate', 'deploy'], { stdio: 'inherit' });
+      child.on('exit', (code) => console.log('migrate deploy finished with code', code));
+    } catch (e) {
+      console.error('Failed to spawn migrate deploy:', e);
+    }
   }
 
   if (WEBHOOK_URL) {
