@@ -136,8 +136,21 @@ async function startBot() {
   app.use(express.json());
   app.get('/', (_req: express.Request, res: express.Response) => res.status(200).send('ok'));
   app.get('/health', (_req: express.Request, res: express.Response) => res.status(200).send('ok'));
-  // Always start HTTP server first so healthcheck responds even if bot launch fails
-  app.listen(port, () => console.log(`HTTP server on :${port}`));
+  app.get('/ready', async (_req: express.Request, res: express.Response) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      res.status(200).send('ok');
+    } catch {
+      res.status(503).send('db not ready');
+    }
+  });
+
+  // Bind HTTP server first and guard against EADDRINUSE
+  try {
+    app.listen(port, () => console.log(`HTTP server on :${port}`));
+  } catch (e) {
+    console.error('HTTP listen failed:', e);
+  }
 
   if (WEBHOOK_URL) {
     const path = `/telegraf/${BOT_TOKEN}`;
@@ -152,6 +165,7 @@ async function startBot() {
     return;
   }
 
+  // Polling mode fallback
   try {
     await bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
     await bot.launch({ dropPendingUpdates: true });
