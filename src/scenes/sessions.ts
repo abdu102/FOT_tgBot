@@ -92,13 +92,14 @@ export function sessionsScene(prisma: PrismaClient) {
       await ctx.reply('Tugash vaqti (HH:mm)');
       return;
     }
-    if (sess.sessCreateDay && sess.sessCreateStart && !sess.sessCreateType) {
+    if (sess.sessCreateDay && sess.sessCreateStart && !sess.sessCreateTypeAsked) {
       const end = `${sess.sessCreateDay}T${(ctx.message as any).text.trim()}:00`;
       sess.sessCreateEnd = end;
       const kb = { inline_keyboard: [[
         { text: '5v5', callback_data: 'sess_type_5' },
         { text: '6v6', callback_data: 'sess_type_6' }
       ]] };
+      sess.sessCreateTypeAsked = true;
       await ctx.reply('Turi? (5v5 / 6v6)', { reply_markup: kb } as any);
       return;
     }
