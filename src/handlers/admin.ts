@@ -1,8 +1,8 @@
 import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
-import { autoFormTeams } from '../services/autoFormation';
 import { createDemoSessionWithTeams } from '../services/demo';
 import { computeSessionTable, getSessionTopPlayers } from '../services/session';
+import { allocateIndividualToSession, ensureTeamInSession } from '../services/nabor';
 
 export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   const sendAdminPanel = async (ctx: any) => {
@@ -11,7 +11,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
       keyboard: [
         [{ text: '🗓️ Sessiyalar' }, { text: '➕ Create session' }],
         [{ text: '🧾 Ro‘yxatlar' }, { text: '✅ Tasdiqlash' }],
-        [{ text: '🤖 Auto-formation' }, { text: '🏆 Winner & MoM' }],
+        [{ text: '🏆 Winner & MoM' }],
         [{ text: '🧪 Demo: create session + teams' }],
       ],
       resize_keyboard: true,
@@ -41,7 +41,6 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
       if (r.payment?.receiptFileId) { try { await ctx.replyWithPhoto(r.payment.receiptFileId); } catch {} }
     }
   });
-  bot.hears('🤖 Auto-formation', async (ctx) => { if (!(ctx.state as any).isAdmin) return; const next = await prisma.match.findFirst({ orderBy: { dateTime: 'asc' } }); if (next) { await autoFormTeams(prisma, next.id); await ctx.reply('🤖 Done'); } else { await ctx.reply('Match yo‘q / Нет матча'); } });
   bot.hears('🏆 Winner & MoM', async (ctx) => { if ((ctx.state as any).isAdmin) await ctx.scene.enter('admin:winners'); });
   bot.hears('🧪 Demo: create session + teams', async (ctx) => { if (!(ctx.state as any).isAdmin) return; const { sessionId } = await createDemoSessionWithTeams(prisma); await ctx.reply(`✅ Demo session created: ${sessionId}`); });
 
@@ -60,26 +59,6 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     for (const m of upcoming) {
       const regs = await prisma.registration.findMany({ where: { matchId: m.id }, include: { user: true, team: true, payment: true } });
       await ctx.reply(`Match ${m.location} ${m.dateTime.toISOString()}: ${regs.length} reg`);
-    }
-  });
-
-  bot.action('admin_approve', async (ctx) => {
-    if (!(ctx.state as any).isAdmin) return;
-    const regs = await prisma.registration.findMany({ where: { status: 'PENDING' }, include: { user: true, team: true, match: true, payment: true }, take: 10 });
-    if (!regs.length) return ctx.reply('Pending yo‘q / Нет ожидающих');
-    for (const r of regs) {
-      const title = r.type === 'TEAM' ? `TEAM ${r.team?.name}` : `USER ${r.user?.firstName}`;
-      await ctx.reply(
-        `📝 ${title}\nMatch: ${r.match?.location} ${r.match?.dateTime.toISOString()}\nTo‘lov: ${r.payment?.amount ?? 0} (${r.payment?.status})`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: '✅ Approve', callback_data: `approve_${r.id}` }],
-              [{ text: '❌ Reject', callback_data: `reject_${r.id}` }],
-            ],
-          },
-        } as any
-      );
     }
   });
 
@@ -107,7 +86,21 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.action(/sess_approve_(.*)/, async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     const id = (ctx.match as any)[1];
+    const reg = await (prisma as any).sessionRegistration.findUnique({ where: { id }, include: { session: true, user: true, team: { include: { members: true } }, payment: true } });
+    if (!reg) return;
+    // Check capacity: max 4 teams
+    const teamSlots = await (prisma as any).sessionTeam.count({ where: { sessionId: reg.sessionId } });
+    if (reg.type === 'TEAM') {
+      const members = reg.team?.members?.length || 0;
+      if (members !== 7) return ctx.reply('❌ Jamoada aniq 7 o‘yinchi bo‘lishi kerak');
+      if (teamSlots >= 4) return ctx.reply('❌ Sessiya to‘ldi');
+      await ensureTeamInSession(prisma as any, reg.sessionId, reg.teamId as string);
+    } else {
+      const ok = await allocateIndividualToSession(prisma as any, reg.sessionId, reg.userId as string);
+      if (!ok) return ctx.reply('❌ Sessiya to‘ldi (NABOR jamoalari to‘ldi)');
+    }
     await (prisma as any).sessionRegistration.update({ where: { id }, data: { status: 'APPROVED', approvedAt: new Date() } });
+    if (reg.payment?.id) { await (prisma as any).payment.update({ where: { id: reg.payment.id }, data: { status: 'CONFIRMED' } }); }
     await ctx.reply('✅ Sessiya ro‘yxatdan o‘tish tasdiqlandi');
   });
 
@@ -116,28 +109,6 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     const id = (ctx.match as any)[1];
     await (prisma as any).sessionRegistration.update({ where: { id }, data: { status: 'REJECTED' } });
     await ctx.reply('❌ Sessiya ro‘yxatdan o‘tish rad etildi');
-  });
-
-  bot.action(/approve_(.*)/, async (ctx) => {
-    if (!(ctx.state as any).isAdmin) return;
-    const id = (ctx.match as any)[1];
-    await prisma.registration.update({ where: { id }, data: { status: 'APPROVED', approvedAt: new Date() } });
-    await ctx.reply('✅ Approved');
-  });
-
-  bot.action(/reject_(.*)/, async (ctx) => {
-    if (!(ctx.state as any).isAdmin) return;
-    const id = (ctx.match as any)[1];
-    await prisma.registration.update({ where: { id }, data: { status: 'REJECTED' } });
-    await ctx.reply('❌ Rejected');
-  });
-
-  bot.action('admin_autoform', async (ctx) => {
-    if (!(ctx.state as any).isAdmin) return;
-    const next = await prisma.match.findFirst({ orderBy: { dateTime: 'asc' } });
-    if (!next) return ctx.reply('Match yo‘q / Нет матча');
-    await autoFormTeams(prisma, next.id);
-    await ctx.reply('🤖 Done');
   });
 
   // stats entry is only accessible within a started session (via session view)
@@ -178,8 +149,6 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     if (!(ctx.state as any).isAdmin) return;
     const id = (ctx.match as any)[1];
     try {
-      const { autoFormSessionTeams } = await import('../services/sessionFormation');
-      await autoFormSessionTeams(prisma as any, id);
       await (prisma as any).session.update({ where: { id }, data: { status: 'STARTED' as any } });
       try { await ctx.answerCbQuery('Started'); } catch {}
       try { await ctx.scene.enter('admin:sessionView', { sessionId: id }); } catch {}
