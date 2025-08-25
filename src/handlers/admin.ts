@@ -80,15 +80,20 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     // Show admin actions in the bottom reply keyboard (not inline)
     const keyboard = {
       keyboard: [
-        [{ text: '🗓️ Sessiyalar' }, { text: '➕ Create session' }],
-        [{ text: '🧾 Ro‘yxatlar' }, { text: '✅ Tasdiqlash' }],
-        [{ text: '🏆 Winner & MoM' }],
-        [{ text: '🧪 Demo: create session + teams' }, { text: '🧪 Demo: pending regs' }],
+        // @ts-ignore
+        [{ text: ctx.i18n.t('admin.sessions') }, { text: ctx.i18n.t('admin.create_session') }],
+        // @ts-ignore
+        [{ text: ctx.i18n.t('admin.lists') }, { text: ctx.i18n.t('admin.approvals') }],
+        // @ts-ignore
+        [{ text: ctx.i18n.t('admin.winner_mom') }],
+        // @ts-ignore
+        [{ text: ctx.i18n.t('admin.demo_create') }, { text: ctx.i18n.t('admin.demo_pending') }],
       ],
       resize_keyboard: true,
       one_time_keyboard: false,
     } as any;
-    await ctx.reply('Admin panel', { reply_markup: keyboard } as any);
+    // @ts-ignore
+    await ctx.reply(ctx.i18n.t('admin.panel'), { reply_markup: keyboard } as any);
   };
 
   bot.command('admin', async (ctx) => {
@@ -98,17 +103,17 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   });
 
   // Map text buttons from reply keyboard to actions
-  bot.hears('🗓️ Sessiyalar', async (ctx) => {
+  bot.hears([/🗓️ Sessiyalar/, /🗓️ Сессии/], async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     try { await (ctx.scene as any).leave(); } catch {}
     await ctx.scene.enter('admin:sessions', {});
   });
-  bot.hears('➕ Create session', async (ctx) => {
+  bot.hears([/➕ Sessiya yaratish/, /➕ Создать сессию/], async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     try { await (ctx.scene as any).leave(); } catch {}
     await ctx.scene.enter('admin:sessions', { createOnly: true });
   });
-  bot.hears('🧾 Ro‘yxatlar', async (ctx) => {
+  bot.hears([/🧾 Ro'yxatlar/, /🧾 Списки/], async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     try { await (ctx.scene as any).leave(); } catch {}
     const upcoming = await prisma.match.findMany({ orderBy: { dateTime: 'asc' }, take: 3 });
@@ -117,15 +122,28 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
       await ctx.reply(`Match ${m.location} ${m.dateTime.toISOString()}: ${regs.length} reg`);
     }
   });
-  bot.hears('✅ Tasdiqlash', async (ctx) => {
+  bot.hears([/✅ Tasdiqlash/, /✅ Подтверждения/], async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     try { await (ctx.scene as any).leave(); } catch {}
     await sendApprovalSessionsList(ctx);
   });
-  bot.hears('🏆 Winner & MoM', async (ctx) => { if ((ctx.state as any).isAdmin) { try { await (ctx.scene as any).leave(); } catch {} await ctx.scene.enter('admin:winners'); } });
-  bot.hears('🧪 Demo: create session + teams', async (ctx) => { if (!(ctx.state as any).isAdmin) return; try { await (ctx.scene as any).leave(); } catch {} const { sessionId } = await createDemoSessionWithTeams(prisma); await ctx.reply(`✅ Demo session created: ${sessionId}`); });
-  bot.hears('🧪 Demo: pending regs', async (ctx) => { if (!(ctx.state as any).isAdmin) return; try { await (ctx.scene as any).leave(); } catch {} const { sessionId } = await seedTwoTeamsAndSinglesPending(prisma, { teams: 1, singles: 21 }); await ctx.reply(`✅ Demo pending regs created for session: ${sessionId}`); });
-  bot.hears('🧪 Demo: pending regs', async (ctx) => { if (!(ctx.state as any).isAdmin) return; const { sessionId } = await seedTwoTeamsAndSinglesPending(prisma, { teams: 1, singles: 21 }); await ctx.reply(`✅ Demo pending regs created for session: ${sessionId}`); });
+  bot.hears([/🏆 G'olib va MoM/, /🏆 Победитель и лучший игрок/], async (ctx) => { 
+    if (!(ctx.state as any).isAdmin) return; 
+    try { await (ctx.scene as any).leave(); } catch {} 
+    await ctx.scene.enter('admin:winners'); 
+  });
+  bot.hears([/🧪 Demo: sessiya \+ jamoalar/, /🧪 Демо: сессия \+ команды/], async (ctx) => { 
+    if (!(ctx.state as any).isAdmin) return; 
+    try { await (ctx.scene as any).leave(); } catch {} 
+    const { sessionId } = await createDemoSessionWithTeams(prisma); 
+    await ctx.reply(`✅ Demo session created: ${sessionId}`); 
+  });
+  bot.hears([/🧪 Demo: kutilayotgan arizalar/, /🧪 Демо: ожидающие заявки/], async (ctx) => { 
+    if (!(ctx.state as any).isAdmin) return; 
+    try { await (ctx.scene as any).leave(); } catch {} 
+    const { sessionId } = await seedTwoTeamsAndSinglesPending(prisma, { teams: 1, singles: 21 }); 
+    await ctx.reply(`✅ Demo pending regs created for session: ${sessionId}`); 
+  });
 
   // Maintenance quick actions
   bot.command('cleanup', async (ctx) => {

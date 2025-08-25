@@ -7,13 +7,29 @@ export function matchStatsScene(prisma: PrismaClient) {
     'admin:sessionMatchStats',
     // Step 1: Show teams in session
     async (ctx) => {
-      if (!(ctx.state as any).isAdmin) { await ctx.reply('Faqat admin'); return ctx.scene.leave(); }
-      const sid = (ctx.scene.state as any)?.sessionId as string | undefined;
-      if (!sid) { await ctx.reply('Session topilmadi'); return ctx.scene.leave(); }
+      if (!(ctx.state as any).isAdmin) { 
+        // @ts-ignore
+        await ctx.reply(ctx.i18n.t('admin.only_admin')); 
+        return ctx.scene.leave(); 
+      }
+      
+      // Get sessionId from scene entry parameters
+      const sessionId = (ctx.scene.state as any)?.sessionId || (ctx.scene.session as any)?.sessionId;
+      console.log('Scene state:', ctx.scene.state);
+      console.log('Scene session:', ctx.scene.session);
+      
+      if (!sessionId) { 
+        console.error('No sessionId found in scene params');
+        // @ts-ignore
+        await ctx.reply(ctx.i18n.t('admin.session_not_found')); 
+        return ctx.scene.leave(); 
+      }
+      
+      console.log('Stats entry scene entered with sessionId:', sessionId);
       
       // Get teams in the session
       const sessionTeams = await (prisma as any).sessionTeam.findMany({
-        where: { sessionId: sid },
+        where: { sessionId },
         include: {
           team: {
             include: {
@@ -41,7 +57,7 @@ export function matchStatsScene(prisma: PrismaClient) {
         reply_markup: { inline_keyboard: teamButtons } 
       } as any);
       
-      (ctx.wizard.state as any).sessionId = sid;
+      (ctx.wizard.state as any).sessionId = sessionId;
       return ctx.wizard.next();
     },
     // Step 2: Show players in selected team
@@ -189,9 +205,9 @@ export function matchStatsScene(prisma: PrismaClient) {
   (scene as any).action('back_to_teams', async (ctx: any) => {
     await ctx.answerCbQuery();
     // Go back to step 1 - show teams
-    const sid = (ctx.wizard.state as any).sessionId;
+    const sessionId = (ctx.wizard.state as any).sessionId;
     const sessionTeams = await (prisma as any).sessionTeam.findMany({
-      where: { sessionId: sid },
+      where: { sessionId },
       include: {
         team: {
           include: {

@@ -22,7 +22,14 @@
     "approvals": "✅ Tasdiqlash",
     "lists": "🧾 Ro'yxatlar",
     "demo_create": "🧪 Demo: sessiya + jamoalar",
-    "demo_pending": "🧪 Demo: kutilayotgan arizalar"
+    "demo_pending": "🧪 Demo: kutilayotgan arizalar",
+    "panel": "Admin panel",
+    "winner_mom": "🏆 G'olib va MoM",
+    "admin_detected": "🛡 Admin aniqlandi",
+    "only_admin": "Faqat admin",
+    "session_not_found": "Session topilmadi",
+    "session_not_started": "Session boshlanmagan",
+    "error_session_view": "Xatolik: sessiya ko'rinmadi"
   },
   "session": {
     "start": "▶️ Boshlash",
