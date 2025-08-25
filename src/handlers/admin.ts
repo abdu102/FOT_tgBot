@@ -231,8 +231,26 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
           await autoFormSessionTeams(prisma as any, id);
         } catch (e) { console.error('bg autoFormSessionTeams error', e); }
       }, 0);
-      try { await ctx.scene.enter('admin:sessionView', { sessionId: id }); } catch {}
-      await ctx.reply('Session started');
+      // Optimistically update the message to show STARTED
+      try {
+        const s = await (prisma as any).session.findUnique({ where: { id }, include: { teams: { include: { team: true } } } });
+        if (s) {
+          const typeLabel = (s as any).type === 'SIX_V_SIX' ? '6v6' : '5v5';
+          const header = `🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}  [${s.status}]`;
+          const info = [`🏟️ ${((s as any).stadium || '-')}`, `📍 ${((s as any).place || '-')}`, `🧩 ${typeLabel}`, `👥 ${s.teams.length}/${(s as any).maxTeams || 4}`].join('\n');
+          const table = s.teams.map((t: any) => `${t.team.name}: ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`).join('\n') || 'Hali jamoalar yo‘q';
+          const actions: any[] = [];
+          actions.push([{ text: '⏹ Stop', callback_data: `sess_stop_${s.id}` }]);
+          actions.push([{ text: '➕ Match qo‘shish', callback_data: `sess_add_match_${s.id}` }]);
+          actions.push([{ text: '📜 Matches', callback_data: `sess_matches_${s.id}` }]);
+          actions.push([{ text: '📊 Statistika kiritish', callback_data: `sess_stats_entry_${s.id}` }]);
+          actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
+          actions.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
+          const text = `${header}\n${info}\n\n${table}`;
+          try { await (ctx as any).editMessageText(text, { reply_markup: { inline_keyboard: actions } } as any); }
+          catch { await ctx.reply(text, { reply_markup: { inline_keyboard: actions } } as any); }
+        }
+      } catch {}
     } catch (e) {
       try { await ctx.answerCbQuery(); } catch {}
       await ctx.reply('Error while starting session');
