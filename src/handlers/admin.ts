@@ -77,7 +77,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.hears('➕ Create session', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     try { await (ctx.scene as any).leave(); } catch {}
-    await ctx.scene.enter('admin:sessions');
+    await ctx.scene.enter('admin:sessions', { createOnly: true });
   });
   bot.hears('🧾 Ro‘yxatlar', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;

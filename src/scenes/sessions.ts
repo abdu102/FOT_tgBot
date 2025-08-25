@@ -7,115 +7,31 @@ export function sessionsScene(prisma: PrismaClient) {
     'admin:sessions',
     async (ctx) => {
       if (!(ctx.state as any).isAdmin) { await ctx.reply('Faqat admin'); return; }
-      // Show a simple month/year picker and day grid
-      const st = (ctx.scene.state as any) || {};
-      const base = new Date();
-      const y = typeof st.forceYear === 'number' ? st.forceYear : base.getFullYear();
-      const m = typeof st.forceMonthZeroBased === 'number' ? st.forceMonthZeroBased : base.getMonth();
-      const header = `${y}-${String(m+1).padStart(2,'0')}`;
-      const daysInMonth = new Date(y, m+1, 0).getDate();
-      const rows: any[] = [];
-      let row: any[] = [];
-      for (let d = 1; d <= daysInMonth; d++) {
-        row.push({ text: String(d), callback_data: `sess_pick_day_${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}` });
-        if (row.length === 7) { rows.push(row); row = []; }
-      }
-      if (row.length) rows.push(row);
-      rows.unshift([
-        { text: '«', callback_data: `sess_prev_${y}_${m}` },
-        { text: header, callback_data: 'noop' },
-        { text: '»', callback_data: `sess_next_${y}_${m}` }
-      ]);
-      // If a specific day was requested, show sessions for that day immediately
-      if (typeof st.openDay === 'string') {
-        try { await ctx.answerCbQuery?.(); } catch {}
-        const day = st.openDay as string;
-        const startDay = new Date(`${day}T00:00:00`);
-        const endDay = new Date(`${day}T23:59:59`);
-        const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: startDay }, endAt: { lte: endDay } }, orderBy: { startAt: 'asc' }, take: 25 });
-        if (!sessions.length) {
-          await ctx.reply('Ushbu kunda sessiya yo‘q. Yaratamizmi?', { reply_markup: { inline_keyboard: [[{ text: '➕ Yaratish', callback_data: `sess_create_${day}` }]] } } as any);
-        } else {
-          const rws = sessions.map((s: any) => {
-            const label = `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${s.status})`;
-            return [{ text: label, callback_data: `sess_open_${s.id}` }];
-          });
-          rws.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
-          await ctx.reply('Sessiyalar:', { reply_markup: { inline_keyboard: rws } } as any);
-        }
+      // If entering in create-only mode, start creation flow without calendar
+      if ((ctx.scene.state as any)?.createOnly) {
+        (ctx.session as any).sessCreateAskDay = true;
+        await ctx.reply('Kunni kiriting (YYYY-MM-DD)');
         return;
       }
-
-      await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any);
-      // Also show upcoming sessions (2 weeks) with pagination (5 per page)
-      try {
-        const now = new Date();
-        const end = new Date(now);
-        end.setDate(end.getDate() + 14);
-        const pageSize = 5;
-        const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: now, lte: end } }, orderBy: { startAt: 'asc' }, take: pageSize, skip: 0 });
-        const makeRows = (items: any[]) => items.map((s: any) => [{ text: `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${uzTypeLabel(s.type)})`, callback_data: `sess_open_${s.id}` }]);
-        const nav = [{ text: '»', callback_data: `sess_list_1` }];
-        const rows2 = makeRows(sessions);
-        rows2.push(nav);
-        await ctx.reply('Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows2 } } as any);
-      } catch {}
+      // Show upcoming sessions (2 weeks) with pagination (5 per page)
+      const now = new Date();
+      const end = new Date(now);
+      end.setDate(end.getDate() + 14);
+      const pageSize = 5;
+      const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: now, lte: end } }, orderBy: { startAt: 'asc' }, take: pageSize, skip: 0 });
+      const makeRows = (items: any[]) => items.map((s: any) => [{ text: `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${uzTypeLabel(s.type)})`, callback_data: `sess_open_${s.id}` }]);
+      const nav = [{ text: '»', callback_data: `sess_list_1` }];
+      const rows = makeRows(sessions);
+      rows.push(nav);
+      await ctx.reply('Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any);
       return;
     },
   );
 
   // Inline actions
-  (scene as any).action?.('noop', async (ctx: any) => { await ctx.answerCbQuery(); });
+  (scene as any).action?.('noop', async (ctx: any) => { try { await ctx.answerCbQuery(); } catch {} });
 
-  (scene as any).action?.(/sess_prev_(.*)_(.*)/, async (ctx: any) => {
-    const y = parseInt((ctx.match as any)[1], 10);
-    const m = parseInt((ctx.match as any)[2], 10) - 1; // previous
-    const date = new Date(y, m, 1);
-    const yy = date.getFullYear();
-    const mm = date.getMonth();
-    const header = `${yy}-${String(mm+1).padStart(2,'0')}`;
-    const daysInMonth = new Date(yy, mm+1, 0).getDate();
-    const rows: any[] = [];
-    let row: any[] = [];
-    for (let d = 1; d <= daysInMonth; d++) {
-      row.push({ text: String(d), callback_data: `sess_pick_day_${yy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}` });
-      if (row.length === 7) { rows.push(row); row = []; }
-    }
-    if (row.length) rows.push(row);
-    rows.unshift([
-      { text: '«', callback_data: `sess_prev_${yy}_${mm}` },
-      { text: header, callback_data: 'noop' },
-      { text: '»', callback_data: `sess_next_${yy}_${mm}` }
-    ]);
-    try { await (ctx as any).editMessageReplyMarkup({ inline_keyboard: rows } as any); }
-    catch { await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any); }
-  });
-
-  (scene as any).action?.(/sess_next_(.*)_(.*)/, async (ctx: any) => {
-    const y = parseInt((ctx.match as any)[1], 10);
-    const m = parseInt((ctx.match as any)[2], 10) + 1; // next
-    const date = new Date(y, m, 1);
-    const yy = date.getFullYear();
-    const mm = date.getMonth();
-    const header = `${yy}-${String(mm+1).padStart(2,'0')}`;
-    const daysInMonth = new Date(yy, mm+1, 0).getDate();
-    const rows: any[] = [];
-    let row: any[] = [];
-    for (let d = 1; d <= daysInMonth; d++) {
-      row.push({ text: String(d), callback_data: `sess_pick_day_${yy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}` });
-      if (row.length === 7) { rows.push(row); row = []; }
-    }
-    if (row.length) rows.push(row);
-    rows.unshift([
-      { text: '«', callback_data: `sess_prev_${yy}_${mm}` },
-      { text: header, callback_data: 'noop' },
-      { text: '»', callback_data: `sess_next_${yy}_${mm}` }
-    ]);
-    try { await (ctx as any).editMessageReplyMarkup({ inline_keyboard: rows } as any); }
-    catch { await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any); }
-  });
-
-  // Pagination for upcoming sessions
+  // Pagination for upcoming sessions (single message updated via editMessageText)
   (scene as any).action?.(/sess_list_(\d+)/, async (ctx: any) => {
     if (!(ctx.state as any).isAdmin) return;
     const page = parseInt((ctx.match as any)[1], 10) || 0;
@@ -132,7 +48,7 @@ export function sessionsScene(prisma: PrismaClient) {
     if (sessions.length === pageSize) navRow.push({ text: '»', callback_data: `sess_list_${page + 1}` });
     if (navRow.length) rows.push(navRow);
     try { await ctx.answerCbQuery(); } catch {}
-    try { await (ctx as any).editMessageReplyMarkup({ inline_keyboard: rows } as any); }
+    try { await (ctx as any).editMessageText('Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any); }
     catch { await ctx.reply('Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any); }
   });
 
@@ -146,6 +62,13 @@ export function sessionsScene(prisma: PrismaClient) {
 
   (scene as any).on?.('text', async (ctx: any, next: any) => {
     const sess: any = ctx.session || {};
+    if ((sess as any).sessCreateAskDay && !sess.sessCreateDay) {
+      const raw = (ctx.message as any).text.trim();
+      (ctx.session as any).sessCreateDay = raw;
+      (ctx.session as any).sessCreateAskDay = false;
+      await ctx.reply('Boshlanish vaqti (HH:mm)');
+      return;
+    }
     if (sess.sessCreateDay && !sess.sessCreateStart) {
       sess.sessCreateStart = (ctx.message as any).text.trim();
       await ctx.reply('Tugash vaqti (HH:mm)');
@@ -193,34 +116,9 @@ export function sessionsScene(prisma: PrismaClient) {
     await ctx.reply('✅ Sessiya yaratildi', { reply_markup: { inline_keyboard: [[{ text: 'Ochil', callback_data: `sess_open_${s.id}` }], [{ text: '⬅️ Menyu', callback_data: 'open_admin_panel' }]] } } as any);
   });
 
-  (scene as any).action?.('sess_open_back', async (ctx: any) => {
-    await ctx.scene.reenter();
-  });
+  // Note: session opening is handled globally in admin handlers
 
-  (scene as any).action?.(/sess_open_(.*)/, async (ctx: any) => {
-    if (!(ctx.state as any).isAdmin) return;
-    try { await ctx.answerCbQuery(); } catch {}
-    try { await ctx.deleteMessage(); } catch {}
-    await ctx.scene.enter('admin:sessionView', { sessionId: (ctx.match as any)[1] });
-  });
-
-  (scene as any).action?.(/sess_pick_day_(.*)/, async (ctx: any) => {
-    const day = (ctx.match as any)[1] as string; // YYYY-MM-DD
-    const startDay = new Date(`${day}T00:00:00`);
-    const endDay = new Date(`${day}T23:59:59`);
-    const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: startDay }, endAt: { lte: endDay } }, orderBy: { startAt: 'asc' }, take: 25 });
-    try { await ctx.answerCbQuery(); } catch {}
-    if (!sessions.length) {
-      await ctx.reply('Ushbu kunda sessiya yo‘q. Yaratamizmi?', { reply_markup: { inline_keyboard: [[{ text: '➕ Yaratish', callback_data: `sess_create_${day}` }]] } } as any);
-    } else {
-      const rows = sessions.map((s: any) => {
-        const label = `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${s.status})`;
-        return [{ text: label, callback_data: `sess_open_${s.id}` }];
-      });
-      rows.push([{ text: '➕ Yangi sessiya', callback_data: `sess_create_${day}` }]);
-      await ctx.reply('Sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any);
-    }
-  });
+  // Removed day picking calendar; admin sees only upcoming list and can create via keyboard or typed flow
 
   return scene;
 }
