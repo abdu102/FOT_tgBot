@@ -125,7 +125,45 @@ export function sessionsScene(prisma: PrismaClient) {
     await ctx.reply('✅ Sessiya yaratildi', { reply_markup: { inline_keyboard: [[{ text: 'Ochil', callback_data: `sess_open_${s.id}` }], [{ text: '⬅️ Menyu', callback_data: 'open_admin_panel' }]] } } as any);
   });
 
-  // Note: session opening is handled globally in admin handlers
+  // Session opening handler within the scene
+  (scene as any).action?.(/sess_open_(.*)/, async (ctx: any) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const id = (ctx.match as any)[1];
+    console.log(`DEBUG: sessions scene sess_open_${id} triggered`);
+    try { await ctx.answerCbQuery('Ochilmoqda…'); } catch {}
+    try { await ctx.scene.leave(); } catch {}
+    
+    // Import the sendSessionView function
+    const { registerAdminHandlers } = await import('../handlers/admin');
+    
+    // Get the session and display it
+    try {
+      const s = await (prisma as any).session.findUnique({ where: { id }, include: { teams: { include: { team: true } } } });
+      if (!s) { await ctx.reply('Session topilmadi'); return; }
+      const typeLabel = (s as any).type === 'SIX_V_SIX' ? '6v6' : '5v5';
+      const header = `🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}  [${s.status}]`;
+      const info = [`🏟️ ${((s as any).stadium || '-')}`, `📍 ${((s as any).place || '-')}`, `🧩 ${typeLabel}`, `👥 ${s.teams.length}/${(s as any).maxTeams || 4}`].join('\n');
+      const list = (s.teams || []).slice(0, 10).map((t: any) => `• ${t.team.name}`).join('\n');
+      const tail = (s.teams || []).length > 10 ? `\n…` : (s.teams || []).length ? '' : "Hali jamoalar yo'q";
+      const actions: any[] = [];
+      if ((s as any).status === 'PLANNED') {
+        actions.push([{ text: '▶️ Start', callback_data: `sess_start_${s.id}` }]);
+      } else if ((s as any).status === 'STARTED') {
+        actions.push([{ text: '⏹ Stop', callback_data: `sess_stop_${s.id}` }]);
+        actions.push([{ text: "➕ Match qo'shish", callback_data: `sess_add_match_${s.id}` }]);
+        actions.push([{ text: '📜 Matches', callback_data: `sess_matches_${s.id}` }]);
+        actions.push([{ text: '📊 Statistika kiritish', callback_data: `sess_stats_entry_${s.id}` }]);
+      }
+      actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
+      actions.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
+      const text = `${header}\n${info}\n\n${list || ''}${tail}`;
+      await ctx.reply(text, { reply_markup: { inline_keyboard: actions } } as any);
+      console.log(`DEBUG: sessions scene sess_open_${id} completed`);
+    } catch (e) {
+      console.error('sessions scene sess_open failed', id, e);
+      try { await ctx.reply("Xatolik: sessiyani ochib bo'lmadi"); } catch {}
+    }
+  });
 
   // Removed day picking calendar; admin sees only upcoming list and can create via keyboard or typed flow
 
