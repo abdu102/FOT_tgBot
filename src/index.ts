@@ -47,7 +47,13 @@ bot.use(ensureUserMiddleware(prisma));
 
 // Optional debug logs - Enable by default for now to debug stats issue
 // if (process.env.DEBUG_LOG === '1') {
-  bot.on('callback_query', async (ctx, next) => { try { console.log('CB:', (ctx.callbackQuery as any)?.data); } catch {} return next(); });
+  bot.on('callback_query', async (ctx, next) => { 
+    try { 
+      console.log('CB:', (ctx.callbackQuery as any)?.data); 
+      console.log('DEBUG: Current scene:', (ctx.scene as any)?.current?.id || 'NO_SCENE');
+    } catch {} 
+    return next(); 
+  });
   bot.on('text', async (ctx, next) => { try { console.log('TXT:', (ctx.message as any)?.text); } catch {} return next(); });
 // }
 

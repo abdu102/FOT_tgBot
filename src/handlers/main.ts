@@ -308,6 +308,35 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
   bot.hears(['🔐 Kirish', '🔐 Войти'], async (ctx) => {
     await ctx.scene.enter('auth:login');
   });
+
+  // CRITICAL: Global stats entry handler (moved here to ensure it works outside scenes)
+  bot.action(/sess_stats_entry_(.*)/, async (ctx) => {
+    console.log('DEBUG: MAIN handler sess_stats_entry triggered');
+    if (!(ctx.state as any).isAdmin) {
+      console.log('DEBUG: MAIN handler - Not admin, returning');
+      return;
+    }
+    const id = (ctx.match as any)[1];
+    console.log('DEBUG: MAIN handler - Session ID:', id);
+    
+    const s = await (prisma as any).session.findUnique({ where: { id } });
+    if (!s || (s as any).status !== 'STARTED') {
+      console.log('DEBUG: MAIN handler - Session not found or not started');
+      return ctx.answerCbQuery('Session not started');
+    }
+    
+    console.log('DEBUG: MAIN handler - About to answer callback and enter scene');
+    await ctx.answerCbQuery();
+    console.log('DEBUG: MAIN handler - Entering admin:sessionMatchStats scene with sessionId:', id);
+    console.log('DEBUG: MAIN handler - scene state being passed:', { sessionId: id });
+    try {
+      await ctx.scene.enter('admin:sessionMatchStats', { sessionId: id });
+      console.log('DEBUG: MAIN handler - Scene enter call completed');
+    } catch (error) {
+      console.error('DEBUG: MAIN handler - Scene enter failed:', error);
+      await ctx.reply('Scene enter failed: ' + String(error));
+    }
+  });
 }
 
 
