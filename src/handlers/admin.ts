@@ -5,6 +5,46 @@ import { computeSessionTable, getSessionTopPlayers } from '../services/session';
 import { allocateIndividualToSession, ensureTeamInSession } from '../services/nabor';
 
 export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
+  // Helpers
+  const sendApprovalSessionsList = async (ctx: any) => {
+    const sessions = await (prisma as any).session.findMany({
+      where: { registrations: { some: { status: 'PENDING' } } },
+      include: { registrations: { where: { status: 'PENDING' }, select: { id: true } } },
+      orderBy: { startAt: 'asc' },
+      take: 15,
+    });
+    if (!sessions.length) {
+      const kb = { inline_keyboard: [[{ text: '🧪 Seed demo pending', callback_data: 'admin_seed_pending' }], [{ text: '⬅️ Back', callback_data: 'open_admin_panel' }]] } as any;
+      return ctx.reply('Pending yo‘q', { reply_markup: kb } as any);
+    }
+    const rows = sessions.map((s: any) => {
+      const typeLabel = s.type === 'SIX_V_SIX' ? '6v6' : '5v5';
+      const when = `${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}`;
+      const cnt = s.registrations.length;
+      return [{ text: `${when} · ${typeLabel} · ${cnt} pending`, callback_data: `sess_appr_s_${s.id}` }];
+    });
+    rows.push([{ text: '⬅️ Back', callback_data: 'open_admin_panel' }]);
+    await ctx.reply('Sessiyalar (tasdiqlash uchun):', { reply_markup: { inline_keyboard: rows } } as any);
+  };
+
+  const sendSessionPendingList = async (ctx: any, sessionId: string) => {
+    const s = await (prisma as any).session.findUnique({ where: { id: sessionId }, include: { registrations: { where: { status: 'PENDING' }, include: { user: true, team: { include: { members: { include: { user: true } } } }, payment: true } } } });
+    if (!s) return ctx.reply('Session topilmadi');
+    if (!s.registrations.length) {
+      const backKb = { inline_keyboard: [[{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]] } as any;
+      return ctx.reply('Ushbu sessiyada pending yo‘q', { reply_markup: backKb } as any);
+    }
+    const header = `🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}  [${s.status}]\n🏟️ ${(s as any).stadium || '-'}\n📍 ${(s as any).place || '-'}`;
+    await ctx.reply(header, { reply_markup: { inline_keyboard: [[{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]] } } as any);
+    for (const r of (s as any).registrations) {
+      const who = r.type === 'TEAM' ? `TEAM ${r.team?.name} (${r.team?.members?.length || 0})` : `USER ${r.user?.firstName}`;
+      const participants = r.type === 'TEAM' ? (r.team?.members?.length || 0) : 1;
+      const amount = r.payment?.amount ?? (40000 * participants);
+      const kb = { inline_keyboard: [[{ text: '✅ Approve', callback_data: `sess_approve_${r.id}` }], [{ text: '❌ Reject', callback_data: `sess_reject_${r.id}` }]] } as any;
+      await ctx.reply(`🧾 ${who}\n💰 ${amount} so‘m (${r.payment?.status || 'PENDING'})`, { reply_markup: kb } as any);
+      if (r.payment?.receiptFileId) { try { await ctx.replyWithPhoto(r.payment.receiptFileId); } catch {} }
+    }
+  };
   const sendAdminPanel = async (ctx: any) => {
     // Show admin actions in the bottom reply keyboard (not inline)
     const keyboard = {
@@ -49,18 +89,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.hears('✅ Tasdiqlash', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     try { await (ctx.scene as any).leave(); } catch {}
-    const regs = await (prisma as any).sessionRegistration.findMany({ where: { status: 'PENDING' }, include: { session: true, user: true, team: { include: { members: { include: { user: true } } } }, payment: true }, take: 10 });
-    if (!regs.length) {
-      const kb = { inline_keyboard: [[{ text: '🧪 Seed demo pending', callback_data: 'admin_seed_pending' }], [{ text: '⬅️ Back', callback_data: 'open_admin_panel' }]] } as any;
-      return ctx.reply('Pending yo‘q', { reply_markup: kb } as any);
-    }
-    for (const r of regs) {
-      const who = r.type === 'TEAM' ? `TEAM ${r.team?.name} (${r.team?.members?.length || 0})` : `USER ${r.user?.firstName}`;
-      const when = `${r.session?.startAt.toISOString().slice(0,16).replace('T',' ')}–${r.session?.endAt.toISOString().slice(0,16).replace('T',' ')}`;
-      const kb = { inline_keyboard: [[{ text: '✅ Approve', callback_data: `sess_approve_${r.id}` }], [{ text: '❌ Reject', callback_data: `sess_reject_${r.id}` }]] } as any;
-      await ctx.reply(`🧾 ${who}\n🗓️ ${when}\n💰 ${r.payment?.amount ?? 0} (${r.payment?.status})` , { reply_markup: kb } as any);
-      if (r.payment?.receiptFileId) { try { await ctx.replyWithPhoto(r.payment.receiptFileId); } catch {} }
-    }
+    await sendApprovalSessionsList(ctx);
   });
   bot.hears('🏆 Winner & MoM', async (ctx) => { if ((ctx.state as any).isAdmin) { try { await (ctx.scene as any).leave(); } catch {} await ctx.scene.enter('admin:winners'); } });
   bot.hears('🧪 Demo: create session + teams', async (ctx) => { if (!(ctx.state as any).isAdmin) return; try { await (ctx.scene as any).leave(); } catch {} const { sessionId } = await createDemoSessionWithTeams(prisma); await ctx.reply(`✅ Demo session created: ${sessionId}`); });
@@ -91,14 +120,16 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     try { await ctx.answerCbQuery(); } catch {}
     const { sessionId } = await seedTwoTeamsAndSinglesPending(prisma, { teams: 1, singles: 21 });
     await ctx.reply(`✅ Demo pending regs created for session: ${sessionId}`);
-    // After seeding, show approvals list
-    const regs = await (prisma as any).sessionRegistration.findMany({ where: { status: 'PENDING' }, include: { session: true, user: true, team: { include: { members: { include: { user: true } } } }, payment: true }, take: 10 });
-    for (const r of regs) {
-      const who = r.type === 'TEAM' ? `TEAM ${r.team?.name} (${r.team?.members?.length || 0})` : `USER ${r.user?.firstName}`;
-      const when = `${r.session?.startAt.toISOString().slice(0,16).replace('T',' ')}–${r.session?.endAt.toISOString().slice(0,16).replace('T',' ')}`;
-      const kb = { inline_keyboard: [[{ text: '✅ Approve', callback_data: `sess_approve_${r.id}` }], [{ text: '❌ Reject', callback_data: `sess_reject_${r.id}` }]] } as any;
-      await ctx.reply(`🧾 ${who}\n🗓️ ${when}\n💰 ${r.payment?.amount ?? 0} (${r.payment?.status})`, { reply_markup: kb } as any);
-    }
+    await sendApprovalSessionsList(ctx);
+  });
+
+  // Select a session to see its pending registrations
+  bot.action(/sess_appr_s_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    try { await ctx.answerCbQuery(); } catch {}
+    try { await ctx.deleteMessage(); } catch {}
+    const sid = (ctx.match as any)[1];
+    await sendSessionPendingList(ctx, sid);
   });
 
   // Session registrations approval
