@@ -1,6 +1,7 @@
 import { Scenes } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { formatUzDayAndTimeRange, uzTypeLabel } from '../utils/format';
+import { safeAnswerCb, editOrReply } from '../utils/telegram';
 
 export function sessionsScene(prisma: PrismaClient) {
   const scene = new Scenes.WizardScene<Scenes.WizardContext>(
@@ -23,13 +24,13 @@ export function sessionsScene(prisma: PrismaClient) {
       const nav = [{ text: '»', callback_data: `sess_list_1` }];
       const rows = makeRows(sessions);
       rows.push(nav);
-      await ctx.reply('Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any);
+      await editOrReply(ctx, 'Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any);
       return;
     },
   );
 
   // Inline actions
-  (scene as any).action?.('noop', async (ctx: any) => { try { await ctx.answerCbQuery(); } catch {} });
+  (scene as any).action?.('noop', async (ctx: any) => { await safeAnswerCb(ctx); });
 
   // Pagination for upcoming sessions (single message updated via editMessageText)
   (scene as any).action?.(/sess_list_(\d+)/, async (ctx: any) => {
@@ -47,9 +48,8 @@ export function sessionsScene(prisma: PrismaClient) {
     if (page > 0) navRow.push({ text: '«', callback_data: `sess_list_${page - 1}` });
     if (sessions.length === pageSize) navRow.push({ text: '»', callback_data: `sess_list_${page + 1}` });
     if (navRow.length) rows.push(navRow);
-    try { await ctx.answerCbQuery(); } catch {}
-    try { await (ctx as any).editMessageText('Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any); }
-    catch { await ctx.reply('Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any); }
+    await safeAnswerCb(ctx);
+    await editOrReply(ctx, 'Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any);
   });
 
   (scene as any).action?.(/sess_create_(.*)/, async (ctx: any) => {

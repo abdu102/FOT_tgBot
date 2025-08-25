@@ -2,6 +2,7 @@ import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { createDemoSessionWithTeams, seedTwoTeamsAndSinglesPending } from '../services/demo';
 import { computeSessionTable, getSessionTopPlayers } from '../services/session';
+import { editOrReply, safeAnswerCb } from '../utils/telegram';
 import { formatUzDayAndTimeRange, uzPaymentStatus, uzTypeLabel } from '../utils/format';
 import { allocateIndividualToSession, ensureTeamInSession } from '../services/nabor';
 import { cleanupEphemeralTeams, enforceMaxTeamsForAllSessions } from '../services/maintenance';
@@ -26,7 +27,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
       return [{ text: `${when} · ${typeLabel} · ${cnt} kutilmoqda`, callback_data: `sess_appr_s_${s.id}` }];
     });
     rows.push([{ text: '⬅️ Back', callback_data: 'open_admin_panel' }]);
-    await ctx.reply('Sessiyalar (tasdiqlash uchun):', { reply_markup: { inline_keyboard: rows } } as any);
+    await editOrReply(ctx, 'Sessiyalar (tasdiqlash uchun):', { reply_markup: { inline_keyboard: rows } } as any);
   };
 
   const sendSessionPendingList = async (ctx: any, sessionId: string) => {
@@ -34,10 +35,10 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     if (!s) return ctx.reply('Session topilmadi');
     if (!s.registrations.length) {
       const backKb = { inline_keyboard: [[{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]] } as any;
-      return ctx.reply('Ushbu sessiyada pending yo‘q', { reply_markup: backKb } as any);
+      return editOrReply(ctx, 'Ushbu sessiyada pending yo‘q', { reply_markup: backKb } as any);
     }
     const header = `🗓️ ${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))}  [${s.status}]\n🏟️ ${(s as any).stadium || '-'}\n📍 ${(s as any).place || '-'}`;
-    await ctx.reply(header, { reply_markup: { inline_keyboard: [[{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]] } } as any);
+    await editOrReply(ctx, header, { reply_markup: { inline_keyboard: [[{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]] } } as any);
     for (const r of (s as any).registrations) {
       const who = r.type === 'TEAM' ? `Jamoa: ${r.team?.name} (${r.team?.members?.length || 0} kishi)` : `Foydalanuvchi: ${r.user?.firstName}`;
       const participants = r.type === 'TEAM' ? (r.team?.members?.length || 0) : 1;
