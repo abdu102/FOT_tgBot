@@ -223,12 +223,12 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     if (!(ctx.state as any).isAdmin) return;
     const id = (ctx.match as any)[1];
     try {
+      try { await ctx.answerCbQuery('Starting…'); } catch {}
       await (prisma as any).session.update({ where: { id }, data: { status: 'STARTED' as any } });
-      try { await ctx.answerCbQuery('Started'); } catch {}
       try { await ctx.scene.enter('admin:sessionView', { sessionId: id }); } catch {}
       await ctx.reply('Session started');
     } catch (e) {
-      try { await ctx.answerCbQuery('Error'); } catch {}
+      try { await ctx.answerCbQuery(); } catch {}
       await ctx.reply('Error while starting session');
     }
   });

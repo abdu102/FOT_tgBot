@@ -35,19 +35,27 @@ export function sessionViewScene(prisma: PrismaClient) {
 
   (scene as any).action?.(/sess_start_(.*)/, async (ctx: any) => {
     const id = (ctx.match as any)[1];
-    // Lock teams: approve list is transformed into SessionTeam
-    await autoFormSessionTeams(prisma as any, id);
-    await (prisma as any).session.update({ where: { id }, data: { status: 'STARTED' as any } });
-    await ctx.answerCbQuery('Started');
+    try { await ctx.answerCbQuery('Starting…'); } catch {}
+    try {
+      // Lock teams: approve list is transformed into SessionTeam
+      await autoFormSessionTeams(prisma as any, id);
+      await (prisma as any).session.update({ where: { id }, data: { status: 'STARTED' as any } });
+    } catch (e) {
+      console.error('sess_start error', e);
+    }
     await ctx.scene.enter('admin:sessionView', { sessionId: id });
   });
   (scene as any).action?.(/sess_stop_(.*)/, async (ctx: any) => {
     const id = (ctx.match as any)[1];
-    await (prisma as any).session.update({ where: { id }, data: { status: 'FINISHED' as any } });
-    const table = await computeSessionTable(prisma, id);
-    const lines = table.map((t: any, i: number) => `${i+1}. ${t.team.name} — ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`).join('\n') || '—';
-    await ctx.answerCbQuery('Stopped');
-    await ctx.reply(`🏁 Sessiya yakunlandi\n\n${lines}`, { reply_markup: { inline_keyboard: [[{ text: '📊 Statistics', callback_data: `sess_stats_${id}` }], [{ text: '🏅 MoM', callback_data: `sess_mom_${id}` }]] } } as any);
+    try { await ctx.answerCbQuery('Stopping…'); } catch {}
+    try {
+      await (prisma as any).session.update({ where: { id }, data: { status: 'FINISHED' as any } });
+      const table = await computeSessionTable(prisma, id);
+      const lines = table.map((t: any, i: number) => `${i+1}. ${t.team.name} — ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`).join('\n') || '—';
+      await ctx.reply(`🏁 Sessiya yakunlandi\n\n${lines}`, { reply_markup: { inline_keyboard: [[{ text: '📊 Statistics', callback_data: `sess_stats_${id}` }], [{ text: '🏅 MoM', callback_data: `sess_mom_${id}` }]] } } as any);
+    } catch (e) {
+      console.error('sess_stop error', e);
+    }
   });
   (scene as any).action?.(/sess_add_match_(.*)/, async (ctx: any) => {
     await ctx.scene.enter('admin:sessionMatchAdd', { sessionId: (ctx.match as any)[1] });
