@@ -36,6 +36,7 @@ export function sessionsScene(prisma: PrismaClient) {
   (scene as any).action?.(/sess_list_(\d+)/, async (ctx: any) => {
     if (!(ctx.state as any).isAdmin) return;
     const page = parseInt((ctx.match as any)[1], 10) || 0;
+    console.log(`DEBUG: sess_list_${page} triggered`);
     const now = new Date();
     const end = new Date(now);
     end.setDate(end.getDate() + 14);
@@ -49,10 +50,13 @@ export function sessionsScene(prisma: PrismaClient) {
     if (sessions.length === pageSize) navRow.push({ text: '»', callback_data: `sess_list_${page + 1}` });
     if (navRow.length) rows.push(navRow);
     await safeAnswerCb(ctx);
+    console.log(`DEBUG: about to update keyboard for page ${page}`);
     try {
       // Only the keyboard changes; keep text identical to avoid duplication
       await (ctx as any).editMessageReplyMarkup({ inline_keyboard: rows } as any);
-    } catch {
+      console.log(`DEBUG: keyboard updated for page ${page}`);
+    } catch (e) {
+      console.log(`DEBUG: editMessageReplyMarkup failed, sending new message`, e);
       await ctx.reply('Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any);
     }
   });
