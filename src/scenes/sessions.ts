@@ -7,9 +7,10 @@ export function sessionsScene(prisma: PrismaClient) {
     async (ctx) => {
       if (!(ctx.state as any).isAdmin) { await ctx.reply('Faqat admin'); return; }
       // Show a simple month/year picker and day grid
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = now.getMonth();
+      const st = (ctx.scene.state as any) || {};
+      const base = new Date();
+      const y = typeof st.forceYear === 'number' ? st.forceYear : base.getFullYear();
+      const m = typeof st.forceMonthZeroBased === 'number' ? st.forceMonthZeroBased : base.getMonth();
       const header = `${y}-${String(m+1).padStart(2,'0')}`;
       const daysInMonth = new Date(y, m+1, 0).getDate();
       const rows: any[] = [];
@@ -24,6 +25,23 @@ export function sessionsScene(prisma: PrismaClient) {
         { text: header, callback_data: 'noop' },
         { text: '»', callback_data: `sess_next_${y}_${m}` }
       ]);
+      // If a specific day was requested, show sessions for that day immediately
+      if (typeof st.openDay === 'string') {
+        try { await ctx.answerCbQuery?.(); } catch {}
+        const day = st.openDay as string;
+        const startDay = new Date(`${day}T00:00:00`);
+        const endDay = new Date(`${day}T23:59:59`);
+        const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: startDay }, endAt: { lte: endDay } }, orderBy: { startAt: 'asc' }, take: 25 });
+        if (!sessions.length) {
+          await ctx.reply('Ushbu kunda sessiya yo‘q. Yaratamizmi?', { reply_markup: { inline_keyboard: [[{ text: '➕ Yaratish', callback_data: `sess_create_${day}` }]] } } as any);
+        } else {
+          const rws = sessions.map((s: any) => [{ text: `${s.startAt.toISOString().slice(11,16)}–${s.endAt.toISOString().slice(11,16)} (${s.status})`, callback_data: `sess_open_${s.id}` }]);
+          rws.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
+          await ctx.reply('Sessiyalar:', { reply_markup: { inline_keyboard: rws } } as any);
+        }
+        return;
+      }
+
       await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any);
       return;
     },

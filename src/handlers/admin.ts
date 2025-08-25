@@ -70,7 +70,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.hears('🗓️ Sessiyalar', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     try { await (ctx.scene as any).leave(); } catch {}
-    await ctx.scene.enter('admin:sessions');
+    await ctx.scene.enter('admin:sessions', {});
   });
   bot.hears('➕ Create session', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
@@ -190,7 +190,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.action('admin_sessions', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     try { await ctx.answerCbQuery(); } catch {}
-    await ctx.scene.enter('admin:sessions');
+    await ctx.scene.enter('admin:sessions', {});
   });
 
   bot.action('admin_create_session', async (ctx) => {
@@ -202,7 +202,6 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.action(/sess_open_(.*)/, async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     try { await ctx.answerCbQuery(); } catch {}
-    try { await ctx.deleteMessage(); } catch {}
     await ctx.scene.enter('admin:sessionView', { sessionId: (ctx.match as any)[1] });
   });
 
