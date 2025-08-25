@@ -49,7 +49,12 @@ export function sessionsScene(prisma: PrismaClient) {
     if (sessions.length === pageSize) navRow.push({ text: '»', callback_data: `sess_list_${page + 1}` });
     if (navRow.length) rows.push(navRow);
     await safeAnswerCb(ctx);
-    await editOrReply(ctx, 'Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any);
+    try {
+      // Only the keyboard changes; keep text identical to avoid duplication
+      await (ctx as any).editMessageReplyMarkup({ inline_keyboard: rows } as any);
+    } catch {
+      await ctx.reply('Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any);
+    }
   });
 
   (scene as any).action?.(/sess_create_(.*)/, async (ctx: any) => {
