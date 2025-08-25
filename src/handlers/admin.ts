@@ -127,7 +127,6 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.action(/sess_appr_s_(.*)/, async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     try { await ctx.answerCbQuery(); } catch {}
-    try { await ctx.deleteMessage(); } catch {}
     const sid = (ctx.match as any)[1];
     await sendSessionPendingList(ctx, sid);
   });
@@ -191,11 +190,6 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.action('admin_sessions', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     try { await ctx.answerCbQuery(); } catch {}
-    try {
-      // prefer editing the existing message if possible (safer for back)
-      await ctx.editMessageReplyMarkup({ inline_keyboard: [] } as any).catch(() => {});
-    } catch {}
-    try { await ctx.deleteMessage(); } catch {}
     await ctx.scene.enter('admin:sessions');
   });
 

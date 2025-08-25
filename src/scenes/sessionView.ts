@@ -27,8 +27,9 @@ export function sessionViewScene(prisma: PrismaClient) {
       }
       actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
       actions.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
-      try { await ctx.deleteMessage(); } catch {}
-      await ctx.reply(`${header}\n${info}\n\n${table}`, { reply_markup: { inline_keyboard: actions } } as any);
+      const text = `${header}\n${info}\n\n${table}`;
+      try { await (ctx as any).editMessageText(text, { reply_markup: { inline_keyboard: actions } } as any); }
+      catch { await ctx.reply(text, { reply_markup: { inline_keyboard: actions } } as any); }
       return;
     }
   );

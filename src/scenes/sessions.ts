@@ -52,7 +52,8 @@ export function sessionsScene(prisma: PrismaClient) {
       { text: header, callback_data: 'noop' },
       { text: '»', callback_data: `sess_next_${yy}_${mm}` }
     ]);
-    try { await ctx.editMessageReplyMarkup({ inline_keyboard: rows } as any); } catch { await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any); }
+    try { await (ctx as any).editMessageReplyMarkup({ inline_keyboard: rows } as any); }
+    catch { await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any); }
   });
 
   (scene as any).action?.(/sess_next_(.*)_(.*)/, async (ctx: any) => {
@@ -75,13 +76,15 @@ export function sessionsScene(prisma: PrismaClient) {
       { text: header, callback_data: 'noop' },
       { text: '»', callback_data: `sess_next_${yy}_${mm}` }
     ]);
-    try { await ctx.editMessageReplyMarkup({ inline_keyboard: rows } as any); } catch { await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any); }
+    try { await (ctx as any).editMessageReplyMarkup({ inline_keyboard: rows } as any); }
+    catch { await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any); }
   });
 
   (scene as any).action?.(/sess_create_(.*)/, async (ctx: any) => {
     if (!(ctx.state as any).isAdmin) return;
     const day = (ctx.match as any)[1] as string;
     (ctx.session as any).sessCreateDay = day;
+    try { await ctx.answerCbQuery(); } catch {}
     await ctx.reply('Boshlanish vaqti (HH:mm)');
   });
 
@@ -155,6 +158,7 @@ export function sessionsScene(prisma: PrismaClient) {
     const startDay = new Date(`${day}T00:00:00`);
     const endDay = new Date(`${day}T23:59:59`);
     const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: startDay }, endAt: { lte: endDay } }, orderBy: { startAt: 'asc' } });
+    try { await ctx.answerCbQuery(); } catch {}
     if (!sessions.length) {
       await ctx.reply('Ushbu kunda sessiya yo‘q. Yaratamizmi?', { reply_markup: { inline_keyboard: [[{ text: '➕ Yaratish', callback_data: `sess_create_${day}` }]] } } as any);
     } else {
