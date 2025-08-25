@@ -1,6 +1,61 @@
 {
   "start": {
     "greet": "👋 Salom! Futbol ligamiz botiga xush kelibsiz!"
+  },
+  "menu": {
+    "weekly_games": "⚽ Haftalik o'yinlar",
+    "team": "👥 Jamoa",
+    "my_sessions": "📅 Mening sessiyalarim",
+    "profile": "👤 Profil",
+    "language": "🌐 Til: UZ/RU",
+    "create_account": "👤 Hisob yaratish"
+  },
+  "auth": {
+    "register": "📝 Ro'yxatdan o'tish",
+    "login": "🔐 Kirish",
+    "sign_in_first": "Iltimos, avval tizimga kiring!",
+    "already_registered": "Siz allaqachon tizimdasiz"
+  },
+  "admin": {
+    "sessions": "🗓️ Sessiyalar",
+    "create_session": "➕ Sessiya yaratish",
+    "approvals": "✅ Tasdiqlash",
+    "lists": "🧾 Ro'yxatlar",
+    "demo_create": "🧪 Demo: sessiya + jamoalar",
+    "demo_pending": "🧪 Demo: kutilayotgan arizalar"
+  },
+  "session": {
+    "start": "▶️ Boshlash",
+    "stop": "⏹ To'xtatish",
+    "add_match": "➕ Match qo'shish",
+    "matches": "📜 Matchlar",
+    "stats_entry": "📊 Statistika kiritish",
+    "statistics": "📊 Statistika",
+    "back": "⬅️ Orqaga",
+    "back_to_sessions": "⬅️ Sessiyalar",
+    "team_1_won": "🏆 1-jamoa g'alaba",
+    "team_2_won": "🏆 2-jamoa g'alaba", 
+    "draw": "🤝 Durang"
+  },
+  "stats": {
+    "select_team": "Jamoa tanlang:",
+    "select_player": "O'yinchi tanlang:",
+    "select_action": "Harakat tanlang:",
+    "add_goal": "⚽ Gol qo'shish",
+    "add_assist": "🅰️ Assist qo'shish",
+    "goal_added": "✅ {name}ga gol qo'shildi!",
+    "assist_added": "✅ {name}ga assist qo'shildi!",
+    "error_goal": "❌ Gol qo'shishda xatolik",
+    "error_assist": "❌ Assist qo'shishda xatolik",
+    "back_to_teams": "⬅️ Jamoalar",
+    "back_to_players": "⬅️ O'yinchilar"
+  },
+  "common": {
+    "back": "⬅️ Orqaga",
+    "cancel": "❌ Bekor qilish",
+    "save": "💾 Saqlash",
+    "edit": "✏️ Tahrirlash",
+    "delete": "🗑️ O'chirish"
   }
 }
 

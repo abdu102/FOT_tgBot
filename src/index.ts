@@ -6,7 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import express from 'express';
 import { spawn } from 'child_process';
-import { buildMainKeyboard, buildAuthKeyboard } from './keyboards/main';
+import { buildMainKeyboard, buildAuthKeyboard, buildWelcomeKeyboard } from './keyboards/main';
 import { registerScenes } from './scenes';
 import { authMiddleware } from './middlewares/auth';
 import { ensureUserMiddleware } from './middlewares/ensureUser';
@@ -111,12 +111,13 @@ bot.start(async (ctx) => {
     // @ts-ignore
     await ctx.reply(ctx.i18n.t('start.greet', { name }), { reply_markup: adminKeyboard } as any);
     await ctx.reply('🛡 Admin detected');
-  } else {
+  } else if (isAuthenticated) {
     // @ts-ignore
-    await ctx.reply(
-      ctx.i18n.t('start.greet', { name }),
-      isAuthenticated ? buildMainKeyboard(ctx) : buildAuthKeyboard(ctx, { showRegister: !hasAccount })
-    );
+    await ctx.reply(ctx.i18n.t('start.greet', { name }), buildMainKeyboard(ctx));
+  } else {
+    // For new users, show welcome menu with "Create Account" option
+    // @ts-ignore
+    await ctx.reply(ctx.i18n.t('start.greet', { name }), buildWelcomeKeyboard(ctx));
   }
 });
 

@@ -1,17 +1,65 @@
 import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
-import { buildMainKeyboard, buildAuthKeyboard } from '../keyboards/main';
+import { buildMainKeyboard, buildAuthKeyboard, buildWelcomeKeyboard } from '../keyboards/main';
 import { listAvailableSessions } from '../services/session';
 import { formatUzDayAndTimeRange, uzTypeLabel } from '../utils/format';
 import bcrypt from 'bcryptjs';
 
 export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
-  bot.hears(['📝 Ro‘yxatdan o‘tish', '📝 Регистрация'], async (ctx) => {
+  // Helper function to check authentication
+  const requireAuth = (ctx: any) => {
+    const isAuth = Boolean((ctx.state as any).isAuthenticated);
+    if (!isAuth) {
+      // @ts-ignore
+      ctx.reply(ctx.i18n.t('auth.sign_in_first'), buildWelcomeKeyboard(ctx));
+      return false;
+    }
+    return true;
+  };
+
+  // Handle "Create Account" button
+  bot.hears([/👤 Hisob yaratish/, /👤 Создать аккаунт/], async (ctx) => {
+    await ctx.reply('Ro\'yxatdan o\'tish yoki kirish?', { 
+      reply_markup: { 
+        inline_keyboard: [
+          [
+            // @ts-ignore
+            { text: ctx.i18n.t('auth.register'), callback_data: 'auth_register' },
+            // @ts-ignore  
+            { text: ctx.i18n.t('auth.login'), callback_data: 'auth_login' }
+          ]
+        ] 
+      } 
+    } as any);
+  });
+
+  bot.action('auth_register', async (ctx) => {
+    await ctx.answerCbQuery();
     const u = await prisma.user.findUnique({ where: { id: (ctx.state as any).userId } });
     if (u?.isActive) {
-      return ctx.reply('Siz allaqachon tizimdasiz / Вы уже авторизованы');
+      // @ts-ignore
+      return ctx.reply(ctx.i18n.t('auth.already_registered'));
     }
     await ctx.scene.enter('onboarding:individual');
+  });
+
+  bot.action('auth_login', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.scene.enter('auth:login');
+  });
+
+  // Keep old handlers for backward compatibility
+  bot.hears([/📝 Ro'yxatdan o'tish/, /📝 Регистрация/], async (ctx) => {
+    const u = await prisma.user.findUnique({ where: { id: (ctx.state as any).userId } });
+    if (u?.isActive) {
+      // @ts-ignore
+      return ctx.reply(ctx.i18n.t('auth.already_registered'));
+    }
+    await ctx.scene.enter('onboarding:individual');
+  });
+
+  bot.hears([/🔐 Kirish/, /🔐 Войти/], async (ctx) => {
+    await ctx.scene.enter('auth:login');
   });
 
   bot.action('go_individual', async (ctx) => {
@@ -19,9 +67,19 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
   });
   // Removed team registration from onboarding entry; team creation will be under captain tools after login
 
-  bot.hears(['⚽ Haftalik o‘yinlar', '⚽ Еженедельные матчи'], async (ctx) => {
-    const isAuth = Boolean((ctx.state as any).isAuthenticated);
-    await ctx.reply('Ro‘yxatdan o‘tish turi?', { reply_markup: { inline_keyboard: [[{ text: '✍️ Shaxsiy', callback_data: 'sr_type_ind' }, { text: '👥 Jamoa', callback_data: 'sr_type_team' }]] } } as any);
+  bot.hears([/⚽ Haftalik o'yinlar/, /⚽ Еженедельные матчи/], async (ctx) => {
+    if (!requireAuth(ctx)) return;
+    
+    await ctx.reply('Ro\'yxatdan o\'tish turi?', { 
+      reply_markup: { 
+        inline_keyboard: [
+          [
+            { text: '✍️ Shaxsiy', callback_data: 'sr_type_ind' }, 
+            { text: '👥 Jamoa', callback_data: 'sr_type_team' }
+          ]
+        ] 
+      } 
+    } as any);
   });
 
   // Session registration flow
@@ -170,7 +228,9 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     await ctx.reply(`📅 Tasdiqlangan sessiyalarim:\n${lines}`);
   });
 
-  bot.hears(['👤 Profil', '👤 Профиль'], async (ctx) => {
+  bot.hears([/👤 Profil/, /👤 Профиль/], async (ctx) => {
+    if (!requireAuth(ctx)) return;
+    
     const userId = (ctx.state as any).userId as string;
     const u = await prisma.user.findUnique({ where: { id: userId }, include: { stats: true } });
     const ps = u?.stats?.[0];
@@ -178,12 +238,40 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     await ctx.reply('⚙️ Sozlamalar / Настройки', {
       reply_markup: {
         inline_keyboard: [
-          [{ text: '✏️ Ma’lumotni o‘zgartirish / Изменить данные', callback_data: 'profile_edit' }],
-          [{ text: '🔐 Parolni o‘zgartirish / Сменить пароль', callback_data: 'profile_password' }],
+          [{ text: '✏️ Ma\'lumotni o\'zgartirish / Изменить данные', callback_data: 'profile_edit' }],
+          [{ text: '🔐 Parolni o\'zgartirish / Сменить пароль', callback_data: 'profile_password' }],
           [{ text: '🚪 Chiqish / Выйти', callback_data: 'profile_logout' }],
         ],
       },
     } as any);
+  });
+
+  // Add handler for "Mening sessiyalarim" button 
+  bot.hears([/📅 Mening sessiyalarim/, /📅 Мои сессии/], async (ctx) => {
+    if (!requireAuth(ctx)) return;
+    
+    const userId = (ctx.state as any).userId as string;
+    const regs = await (prisma as any).sessionRegistration.findMany({
+      where: { 
+        OR: [
+          { userId, status: 'APPROVED' },
+          { team: { captainId: userId }, status: 'APPROVED' }
+        ]
+      },
+      include: { session: true, team: true },
+      orderBy: { session: { startAt: 'asc' } }
+    });
+    
+    if (!regs.length) {
+      return ctx.reply('📅 Sizda hozircha tasdiqlangan sessiyalar yo\'q');
+    }
+    
+    const lines = regs.map((r: any) => {
+      const label = formatUzDayAndTimeRange(r.session.startAt, r.session.endAt);
+      const who = r.type === 'TEAM' ? `Jamoa: ${r.team?.name}` : 'Yakka';
+      return `• ${label} · ${who}`;
+    }).join('\n');
+    await ctx.reply(`📅 Tasdiqlangan sessiyalarim:\n${lines}`);
   });
 
   // Logout: deactivate account (do not delete), keep phone and username intact

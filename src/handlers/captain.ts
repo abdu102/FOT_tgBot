@@ -1,10 +1,22 @@
 import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { generateTeamInvite, buildInviteDeepLink } from '../services/invite';
-import { buildMainKeyboard } from '../keyboards/main';
+import { buildMainKeyboard, buildWelcomeKeyboard } from '../keyboards/main';
 
 export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
+  // Helper function to check authentication
+  const requireAuth = (ctx: any) => {
+    const isAuth = Boolean((ctx.state as any).isAuthenticated);
+    if (!isAuth) {
+      // @ts-ignore
+      ctx.reply(ctx.i18n.t('auth.sign_in_first'), buildWelcomeKeyboard(ctx));
+      return false;
+    }
+    return true;
+  };
+
   async function showTeam(ctx: any) {
+    if (!requireAuth(ctx)) return;
     const userId = (ctx.state as any).userId as string;
     let team = await prisma.team.findFirst({ where: { captainId: userId }, include: { members: { include: { user: true } } } });
     if (!team) {
