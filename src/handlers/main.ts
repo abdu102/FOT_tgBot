@@ -2,6 +2,7 @@ import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { buildMainKeyboard, buildAuthKeyboard } from '../keyboards/main';
 import { listAvailableSessions } from '../services/session';
+import { formatUzDayAndTimeRange, uzTypeLabel } from '../utils/format';
 import bcrypt from 'bcryptjs';
 
 export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
@@ -39,11 +40,8 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     const rows = sessions.map((s: any) => {
       const d = new Date(s.startAt);
       const endAt = new Date(s.endAt);
-      const day = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      const t = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-      const t2 = `${String(endAt.getHours()).padStart(2,'0')}:${String(endAt.getMinutes()).padStart(2,'0')}`;
-      const type = s.type === 'SIX_V_SIX' ? '6v6' : '5v5';
-      return [{ text: `${day} ${t}–${t2} (${type})`, callback_data: `sr_pick_${s.id}` }];
+      const label = `${formatUzDayAndTimeRange(d, endAt)} (${uzTypeLabel(s.type)})`;
+      return [{ text: label, callback_data: `sr_pick_${s.id}` }];
     });
     rows.push([{ text: '⬅️ Orqaga', callback_data: 'sr_back' }]);
     await ctx.reply('Bu haftadagi mavjud sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any);

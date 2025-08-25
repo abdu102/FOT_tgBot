@@ -1,5 +1,6 @@
 import { Scenes } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
+import { formatUzDayAndTimeRange, uzTypeLabel } from '../utils/format';
 
 export function sessionsScene(prisma: PrismaClient) {
   const scene = new Scenes.WizardScene<Scenes.WizardContext>(
@@ -35,7 +36,10 @@ export function sessionsScene(prisma: PrismaClient) {
         if (!sessions.length) {
           await ctx.reply('Ushbu kunda sessiya yo‘q. Yaratamizmi?', { reply_markup: { inline_keyboard: [[{ text: '➕ Yaratish', callback_data: `sess_create_${day}` }]] } } as any);
         } else {
-          const rws = sessions.map((s: any) => [{ text: `${s.startAt.toISOString().slice(11,16)}–${s.endAt.toISOString().slice(11,16)} (${s.status})`, callback_data: `sess_open_${s.id}` }]);
+          const rws = sessions.map((s: any) => {
+            const label = `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${s.status})`;
+            return [{ text: label, callback_data: `sess_open_${s.id}` }];
+          });
           rws.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
           await ctx.reply('Sessiyalar:', { reply_markup: { inline_keyboard: rws } } as any);
         }
@@ -180,7 +184,10 @@ export function sessionsScene(prisma: PrismaClient) {
     if (!sessions.length) {
       await ctx.reply('Ushbu kunda sessiya yo‘q. Yaratamizmi?', { reply_markup: { inline_keyboard: [[{ text: '➕ Yaratish', callback_data: `sess_create_${day}` }]] } } as any);
     } else {
-      const rows = sessions.map((s: any) => [{ text: `${s.startAt.toISOString().slice(11,16)}–${s.endAt.toISOString().slice(11,16)} (${s.status})`, callback_data: `sess_open_${s.id}` }]);
+      const rows = sessions.map((s: any) => {
+        const label = `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${s.status})`;
+        return [{ text: label, callback_data: `sess_open_${s.id}` }];
+      });
       rows.push([{ text: '➕ Yangi sessiya', callback_data: `sess_create_${day}` }]);
       await ctx.reply('Sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any);
     }

@@ -2,6 +2,7 @@ import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { createDemoSessionWithTeams, seedTwoTeamsAndSinglesPending } from '../services/demo';
 import { computeSessionTable, getSessionTopPlayers } from '../services/session';
+import { formatUzDayAndTimeRange, uzPaymentStatus, uzTypeLabel } from '../utils/format';
 import { allocateIndividualToSession, ensureTeamInSession } from '../services/nabor';
 import { cleanupEphemeralTeams, enforceMaxTeamsForAllSessions } from '../services/maintenance';
 
@@ -19,10 +20,10 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
       return ctx.reply('Pending yo‘q', { reply_markup: kb } as any);
     }
     const rows = sessions.map((s: any) => {
-      const typeLabel = s.type === 'SIX_V_SIX' ? '6v6' : '5v5';
-      const when = `${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}`;
+      const when = formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt));
+      const typeLabel = uzTypeLabel(s.type);
       const cnt = s.registrations.length;
-      return [{ text: `${when} · ${typeLabel} · ${cnt} pending`, callback_data: `sess_appr_s_${s.id}` }];
+      return [{ text: `${when} · ${typeLabel} · ${cnt} kutilmoqda`, callback_data: `sess_appr_s_${s.id}` }];
     });
     rows.push([{ text: '⬅️ Back', callback_data: 'open_admin_panel' }]);
     await ctx.reply('Sessiyalar (tasdiqlash uchun):', { reply_markup: { inline_keyboard: rows } } as any);
@@ -35,14 +36,14 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
       const backKb = { inline_keyboard: [[{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]] } as any;
       return ctx.reply('Ushbu sessiyada pending yo‘q', { reply_markup: backKb } as any);
     }
-    const header = `🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}  [${s.status}]\n🏟️ ${(s as any).stadium || '-'}\n📍 ${(s as any).place || '-'}`;
+    const header = `🗓️ ${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))}  [${s.status}]\n🏟️ ${(s as any).stadium || '-'}\n📍 ${(s as any).place || '-'}`;
     await ctx.reply(header, { reply_markup: { inline_keyboard: [[{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]] } } as any);
     for (const r of (s as any).registrations) {
-      const who = r.type === 'TEAM' ? `TEAM ${r.team?.name} (${r.team?.members?.length || 0})` : `USER ${r.user?.firstName}`;
+      const who = r.type === 'TEAM' ? `Jamoa: ${r.team?.name} (${r.team?.members?.length || 0} kishi)` : `Foydalanuvchi: ${r.user?.firstName}`;
       const participants = r.type === 'TEAM' ? (r.team?.members?.length || 0) : 1;
       const amount = r.payment?.amount ?? (40000 * participants);
-      const kb = { inline_keyboard: [[{ text: '✅ Approve', callback_data: `sess_approve_${r.id}` }], [{ text: '❌ Reject', callback_data: `sess_reject_${r.id}` }]] } as any;
-      await ctx.reply(`🧾 ${who}\n💰 ${amount} so‘m (${r.payment?.status || 'PENDING'})`, { reply_markup: kb } as any);
+      const kb = { inline_keyboard: [[{ text: '✅ Tasdiqlash', callback_data: `sess_approve_${r.id}` }], [{ text: '❌ Rad etish', callback_data: `sess_reject_${r.id}` }]] } as any;
+      await ctx.reply(`🧾 ${who}\n📄 Turi: ${r.type === 'TEAM' ? 'Jamoa' : 'Yakka'}\n💰 Summa: ${amount} so‘m\n💳 To‘lov: ${uzPaymentStatus(r.payment?.status)}`, { reply_markup: kb } as any);
       if (r.payment?.receiptFileId) { try { await ctx.replyWithPhoto(r.payment.receiptFileId); } catch {} }
     }
   };
