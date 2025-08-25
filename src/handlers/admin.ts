@@ -9,6 +9,29 @@ import { cleanupEphemeralTeams, enforceMaxTeamsForAllSessions } from '../service
 
 export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   // Helpers
+  const sendSessionView = async (ctx: any, id: string) => {
+    const s = await (prisma as any).session.findUnique({ where: { id }, include: { matches: true, teams: { include: { team: true } } } });
+    if (!s) { await ctx.reply('Session topilmadi'); return; }
+    const typeLabel = (s as any).type === 'SIX_V_SIX' ? '6v6' : '5v5';
+    const header = `🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}  [${s.status}]`;
+    const info = [`🏟️ ${((s as any).stadium || '-')}`, `📍 ${((s as any).place || '-')}`, `🧩 ${typeLabel}`, `👥 ${s.teams.length}/${(s as any).maxTeams || 4}`].join('\n');
+    const maxRows = 20;
+    const rows = s.teams.map((t: any) => `${t.team.name}: ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`);
+    const table = rows.slice(0, maxRows).join('\n') + (rows.length > maxRows ? `\n… and ${rows.length - maxRows} more` : rows.length ? '' : 'Hali jamoalar yo‘q');
+    const actions: any[] = [];
+    if ((s as any).status === 'PLANNED') {
+      actions.push([{ text: '▶️ Start', callback_data: `sess_start_${s.id}` }]);
+    } else if ((s as any).status === 'STARTED') {
+      actions.push([{ text: '⏹ Stop', callback_data: `sess_stop_${s.id}` }]);
+      actions.push([{ text: '➕ Match qo‘shish', callback_data: `sess_add_match_${s.id}` }]);
+      actions.push([{ text: '📜 Matches', callback_data: `sess_matches_${s.id}` }]);
+      actions.push([{ text: '📊 Statistika kiritish', callback_data: `sess_stats_entry_${s.id}` }]);
+    }
+    actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
+    actions.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
+    const text = `${header}\n${info}\n\n${table}`;
+    await ctx.reply(text, { reply_markup: { inline_keyboard: actions } } as any);
+  };
   const sendApprovalSessionsList = async (ctx: any) => {
     const sessions = await (prisma as any).session.findMany({
       where: { registrations: { some: { status: 'PENDING' } } },
@@ -226,9 +249,10 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   // Open session view from anywhere (for Back buttons)
   bot.action(/sess_open_(.*)/, async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
-    try { await ctx.answerCbQuery(); } catch {}
-    // Do not rely on edit/delete; always open view with a fresh message
-    await ctx.scene.enter('admin:sessionView', { sessionId: (ctx.match as any)[1] });
+    try { await ctx.answerCbQuery('Ochilmoqda…'); } catch {}
+    try { await (ctx.scene as any).leave(); } catch {}
+    const id = (ctx.match as any)[1];
+    await sendSessionView(ctx, id);
   });
 
   bot.action('admin_demo_seed', async (ctx) => {
