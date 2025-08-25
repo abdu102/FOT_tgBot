@@ -45,11 +45,11 @@ bot.use(i18n.middleware());
 bot.use(authMiddleware(prisma));
 bot.use(ensureUserMiddleware(prisma));
 
-// Optional debug logs
-if (process.env.DEBUG_LOG === '1') {
+// Optional debug logs - Enable by default for now to debug stats issue
+// if (process.env.DEBUG_LOG === '1') {
   bot.on('callback_query', async (ctx, next) => { try { console.log('CB:', (ctx.callbackQuery as any)?.data); } catch {} return next(); });
   bot.on('text', async (ctx, next) => { try { console.log('TXT:', (ctx.message as any)?.text); } catch {} return next(); });
-}
+// }
 
 registerScenes(bot, prisma);
 registerMainHandlers(bot, prisma);

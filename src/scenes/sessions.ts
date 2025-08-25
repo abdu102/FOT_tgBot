@@ -169,9 +169,17 @@ export function sessionsScene(prisma: PrismaClient) {
   (scene as any).action?.(/sess_stats_entry_(.*)/, async (ctx: any) => {
     if (!(ctx.state as any).isAdmin) return;
     const id = (ctx.match as any)[1];
-    try { await ctx.answerCbQuery(); } catch {}
+    console.log(`DEBUG: sessions scene sess_stats_entry_${id} triggered`);
+    try { await ctx.answerCbQuery('Statistika kiritish…'); } catch {}
     try { await ctx.scene.leave(); } catch {}
-    await ctx.scene.enter('admin:sessionMatchStats', { sessionId: id });
+    console.log('DEBUG: Sessions scene - About to enter admin:sessionMatchStats with:', { sessionId: id });
+    try {
+      await ctx.scene.enter('admin:sessionMatchStats', { sessionId: id });
+      console.log('DEBUG: Sessions scene - Scene enter completed');
+    } catch (error) {
+      console.error('DEBUG: Sessions scene - Scene enter failed:', error);
+      await ctx.reply('Scene enter failed: ' + String(error));
+    }
   });
 
   // Removed day picking calendar; admin sees only upcoming list and can create via keyboard or typed flow

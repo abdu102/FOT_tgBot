@@ -384,7 +384,14 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     console.log('DEBUG: About to answer callback and enter scene');
     await ctx.answerCbQuery();
     console.log('DEBUG: Entering admin:sessionMatchStats scene with sessionId:', id);
-    await ctx.scene.enter('admin:sessionMatchStats', { sessionId: id });
+    console.log('DEBUG: scene state being passed:', { sessionId: id });
+    try {
+      await ctx.scene.enter('admin:sessionMatchStats', { sessionId: id });
+      console.log('DEBUG: Scene enter call completed');
+    } catch (error) {
+      console.error('DEBUG: Scene enter failed:', error);
+      await ctx.reply('Scene enter failed: ' + String(error));
+    }
   });
 
   bot.action(/sess_mom_(.*)/, async (ctx) => {

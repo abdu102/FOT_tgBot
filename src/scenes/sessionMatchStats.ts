@@ -20,9 +20,13 @@ export function matchStatsScene(prisma: PrismaClient) {
       // Avoid logging full ctx.scene to prevent circular structure errors
       const sessionId = (ctx.scene.state as any)?.sessionId;
       console.log('DEBUG: Extracted sessionId:', sessionId);
+      console.log('DEBUG: ctx.scene.state type:', typeof (ctx.scene.state));
+      console.log('DEBUG: ctx.scene.state keys:', Object.keys(ctx.scene.state || {}));
       
       if (!sessionId) { 
         console.error('DEBUG: No sessionId found in scene params');
+        console.log('DEBUG: Available wizard.state keys:', Object.keys((ctx.wizard?.state || {}) as any));
+        console.log('DEBUG: ctx.state.sessionId:', (ctx.state as any)?.sessionId);
         // @ts-ignore
         await ctx.reply(ctx.i18n.t('admin.session_not_found')); 
         return ctx.scene.leave(); 
