@@ -17,10 +17,7 @@ export function matchStatsScene(prisma: PrismaClient) {
       }
       
       // Get sessionId from scene entry parameters - the second parameter to ctx.scene.enter becomes ctx.scene.state
-      console.log('DEBUG: Full ctx.scene object:', JSON.stringify(ctx.scene, null, 2));
-      console.log('DEBUG: ctx.scene.state:', ctx.scene.state);
-      console.log('DEBUG: ctx.scene.session:', ctx.scene.session);
-      
+      // Avoid logging full ctx.scene to prevent circular structure errors
       const sessionId = (ctx.scene.state as any)?.sessionId;
       console.log('DEBUG: Extracted sessionId:', sessionId);
       
