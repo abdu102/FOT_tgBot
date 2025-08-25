@@ -9,6 +9,10 @@ export async function autoFormSessionTeams(prisma: PrismaClient, sessionId: stri
   if (!session) return { lockedTeams: [] as string[] };
   const teamSize = getTeamSizeByType((session as any).type);
 
+  // Guard: if session already has 4 teams, do nothing (idempotent)
+  const existingTeams = await (prisma as any).sessionTeam.findMany({ where: { sessionId }, include: { team: { include: { members: true } } } });
+  if (existingTeams.length >= 4) return { lockedTeams: [] };
+
   // Approved team registrations (optional if table exists)
   let teamRegs: any[] = [];
   try {
@@ -28,13 +32,18 @@ export async function autoFormSessionTeams(prisma: PrismaClient, sessionId: stri
   } catch {
     singles = [];
   }
-  const singleUserIds = singles.map((r: any) => r.userId as string).filter(Boolean);
+  // Exclude users already assigned to any session team
+  const assignedUserIds = new Set<string>();
+  for (const est of existingTeams) {
+    for (const m of (est.team?.members || [])) assignedUserIds.add(m.userId);
+  }
+  const singleUserIds = singles.map((r: any) => r.userId as string).filter((uid: any) => Boolean(uid) && !assignedUserIds.has(uid as string));
 
   const lockedTeams: string[] = [];
 
   // Lock existing eligible teams first (up to 4)
   for (const teamId of eligibleTeamIds) {
-    if (lockedTeams.length >= 4) break;
+    if (existingTeams.length + lockedTeams.length >= 4) break;
     const exists = await (prisma as any).sessionTeam.findUnique({ where: { sessionId_teamId: { sessionId, teamId } } });
     if (!exists) {
       await (prisma as any).sessionTeam.create({ data: { sessionId, teamId } });
@@ -44,11 +53,14 @@ export async function autoFormSessionTeams(prisma: PrismaClient, sessionId: stri
 
   // Create ephemeral teams from singles to fill remaining slots
   let idx = 0;
-  while (lockedTeams.length < 4 && idx < singleUserIds.length) {
+  const naborPrefix = 'FOT NABOR';
+  const existingNaborCount = existingTeams.filter((x: any) => x.team?.name?.startsWith(naborPrefix)).length;
+  while (existingTeams.length + lockedTeams.length < 4 && idx < singleUserIds.length) {
     const group = singleUserIds.slice(idx, idx + teamSize);
     if (!group.length) break;
     const captainId = group[0];
-    const team = await (prisma as any).team.create({ data: { name: `Singles ${sessionId.slice(0, 4)}-${lockedTeams.length + 1}`, captainId } });
+    const teamIndex = existingNaborCount + lockedTeams.length + 1;
+    const team = await (prisma as any).team.create({ data: { name: `${naborPrefix} ${teamIndex}`, captainId } });
     for (const uid of group) {
       await (prisma as any).teamMember.create({ data: { teamId: team.id, userId: uid } });
     }

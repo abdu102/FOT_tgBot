@@ -157,7 +157,7 @@ export function sessionsScene(prisma: PrismaClient) {
     const day = (ctx.match as any)[1] as string; // YYYY-MM-DD
     const startDay = new Date(`${day}T00:00:00`);
     const endDay = new Date(`${day}T23:59:59`);
-    const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: startDay }, endAt: { lte: endDay } }, orderBy: { startAt: 'asc' } });
+    const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: startDay }, endAt: { lte: endDay } }, orderBy: { startAt: 'asc' }, take: 25 });
     try { await ctx.answerCbQuery(); } catch {}
     if (!sessions.length) {
       await ctx.reply('Ushbu kunda sessiya yo‘q. Yaratamizmi?', { reply_markup: { inline_keyboard: [[{ text: '➕ Yaratish', callback_data: `sess_create_${day}` }]] } } as any);

@@ -15,7 +15,9 @@ export function sessionViewScene(prisma: PrismaClient) {
       const typeLabel = (s as any).type === 'SIX_V_SIX' ? '6v6' : '5v5';
       const header = `🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}  [${s.status}]`;
       const info = [`🏟️ ${((s as any).stadium || '-')}`, `📍 ${((s as any).place || '-')}`, `🧩 ${typeLabel}`, `👥 ${s.teams.length}/${(s as any).maxTeams || 4}`].join('\n');
-      const table = s.teams.map((t: any) => `${t.team.name}: ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`).join('\n') || 'Hali jamoalar yo‘q';
+      const maxRows = 20;
+      const rows = s.teams.map((t: any) => `${t.team.name}: ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`);
+      const table = rows.slice(0, maxRows).join('\n') + (rows.length > maxRows ? `\n… and ${rows.length - maxRows} more` : rows.length ? '' : 'Hali jamoalar yo‘q');
       const actions: any[] = [];
       if (s.status === 'PLANNED') {
         actions.push([{ text: '▶️ Start', callback_data: `sess_start_${s.id}` }]);
@@ -51,7 +53,9 @@ export function sessionViewScene(prisma: PrismaClient) {
         const typeLabel = (s as any).type === 'SIX_V_SIX' ? '6v6' : '5v5';
         const header = `🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}  [${s.status}]`;
         const info = [`🏟️ ${((s as any).stadium || '-')}`, `📍 ${((s as any).place || '-')}`, `🧩 ${typeLabel}`, `👥 ${s.teams.length}/${(s as any).maxTeams || 4}`].join('\n');
-        const table = s.teams.map((t: any) => `${t.team.name}: ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`).join('\n') || 'Hali jamoalar yo‘q';
+        const maxRows2 = 20;
+        const rows2 = s.teams.map((t: any) => `${t.team.name}: ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`);
+        const table = rows2.slice(0, maxRows2).join('\n') + (rows2.length > maxRows2 ? `\n… and ${rows2.length - maxRows2} more` : rows2.length ? '' : 'Hali jamoalar yo‘q');
         const actions: any[] = [];
         actions.push([{ text: '⏹ Stop', callback_data: `sess_stop_${s.id}` }]);
         actions.push([{ text: '➕ Match qo‘shish', callback_data: `sess_add_match_${s.id}` }]);
