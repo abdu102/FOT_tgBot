@@ -65,3 +65,40 @@ export async function getSessionTopPlayers(prisma: PrismaClient, sessionId: stri
 }
 
 
+// List only sessions in [start..end] that are not full.
+// A session is considered full when it already has `maxTeams` teams and every one has at least 7 members.
+export async function listAvailableSessions(
+  prisma: PrismaClient,
+  startInclusive: Date,
+  endInclusive: Date
+) {
+  const sessions = await (prisma as any).session.findMany({
+    where: {
+      startAt: { gte: startInclusive, lte: endInclusive },
+      status: 'PLANNED',
+    },
+    include: {
+      teams: {
+        include: {
+          team: {
+            include: { members: true },
+          },
+        },
+      },
+    },
+    orderBy: { startAt: 'asc' },
+    take: 200,
+  });
+
+  const notFull = (s: any) => {
+    const maxTeams: number = typeof s.maxTeams === 'number' ? s.maxTeams : 4;
+    const sessionTeams: any[] = Array.isArray(s.teams) ? s.teams : [];
+    if (sessionTeams.length < maxTeams) return true;
+    const fullTeams = sessionTeams.filter((st: any) => ((st.team?.members?.length || 0) >= 7)).length;
+    return fullTeams < maxTeams;
+  };
+
+  return sessions.filter(notFull);
+}
+
+

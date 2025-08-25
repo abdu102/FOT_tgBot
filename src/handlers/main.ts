@@ -1,6 +1,7 @@
 import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { buildMainKeyboard, buildAuthKeyboard } from '../keyboards/main';
+import { listAvailableSessions } from '../services/session';
 import bcrypt from 'bcryptjs';
 
 export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
@@ -23,18 +24,51 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
   });
 
   // Session registration flow
+  async function showWeeklySessions(ctx: any) {
+    try { await ctx.answerCbQuery?.(); } catch {}
+    const now = new Date();
+    const start = new Date(now); // start from current time
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    const sessions = await listAvailableSessions(prisma as any, start, end);
+    if (!sessions.length) {
+      await ctx.reply('Bu hafta uchun mos sessiya topilmadi.');
+      return;
+    }
+    const rows = sessions.map((s: any) => {
+      const d = new Date(s.startAt);
+      const endAt = new Date(s.endAt);
+      const day = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const t = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      const t2 = `${String(endAt.getHours()).padStart(2,'0')}:${String(endAt.getMinutes()).padStart(2,'0')}`;
+      const type = s.type === 'SIX_V_SIX' ? '6v6' : '5v5';
+      return [{ text: `${day} ${t}–${t2} (${type})`, callback_data: `sr_pick_${s.id}` }];
+    });
+    rows.push([{ text: '⬅️ Orqaga', callback_data: 'sr_back' }]);
+    await ctx.reply('Bu haftadagi mavjud sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any);
+  }
+
   bot.action('sr_type_ind', async (ctx) => {
     (ctx.session as any).srType = 'INDIVIDUAL';
-    await ctx.reply('Kunni tanlang (YYYY-MM-DD)');
+    (ctx.session as any).srDayAsk = false;
+    await showWeeklySessions(ctx);
   });
   bot.action('sr_type_team', async (ctx) => {
     (ctx.session as any).srType = 'TEAM';
-    await ctx.reply('Kunni tanlang (YYYY-MM-DD)');
+    (ctx.session as any).srDayAsk = false;
+    await showWeeklySessions(ctx);
+  });
+
+  bot.action('sr_back', async (ctx) => {
+    try { await ctx.answerCbQuery(); } catch {}
+    await ctx.reply('Ro‘yxatdan o‘tish turi?', { reply_markup: { inline_keyboard: [[{ text: '✍️ Shaxsiy', callback_data: 'sr_type_ind' }, { text: '👥 Jamoa', callback_data: 'sr_type_team' }]] } } as any);
   });
 
   bot.on('text', async (ctx, next) => {
     const sess = (ctx.session as any) || {};
-    if (sess.srType && !sess.srDay) {
+    // Legacy typed-date flow only if explicitly enabled
+    if (sess.srDayAsk && sess.srType && !sess.srDay) {
       const day = (ctx.message as any).text.trim();
       sess.srDay = day;
       const startDay = new Date(`${day}T00:00:00`);
@@ -55,8 +89,16 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
   bot.action(/sr_pick_(.*)/, async (ctx) => {
     const sessionId = (ctx.match as any)[1] as string;
     const sess = (ctx.session as any) || {};
-    const s = await (prisma as any).session.findUnique({ where: { id: sessionId } });
+    const s = await (prisma as any).session.findUnique({ where: { id: sessionId }, include: { teams: { include: { team: { include: { members: true } } } } } });
     if (!s) return;
+    // Guard: block registration if session is already full (4 teams with >= 7 members each)
+    const maxTeams: number = typeof (s as any).maxTeams === 'number' ? (s as any).maxTeams : 4;
+    const sessionTeams: any[] = Array.isArray((s as any).teams) ? (s as any).teams : [];
+    const fullTeams = sessionTeams.filter((st: any) => ((st.team?.members?.length || 0) >= 7)).length;
+    if (sessionTeams.length >= maxTeams && fullTeams >= maxTeams) {
+      try { await ctx.answerCbQuery?.('To‘liq'); } catch {}
+      return ctx.reply('❌ Bu sessiya to‘la. Iltimos, boshqa sessiyani tanlang.');
+    }
     const type = sess.srType === 'TEAM' ? 'TEAM' : 'INDIVIDUAL';
     let reg: any = null;
     if (type === 'INDIVIDUAL') {
