@@ -268,7 +268,8 @@ export function matchStatsScene(prisma: PrismaClient) {
   (scene as any).action('back_to_session', async (ctx: any) => {
     await ctx.answerCbQuery();
     await ctx.scene.leave();
-    // This will return to the session view
+    // Simple message instead of trying to import sendAdminPanel
+    await ctx.reply('Adminlar paneliga qaytish uchun /start ni bosing.');
   });
 
   // Remove the old handlers that are no longer needed

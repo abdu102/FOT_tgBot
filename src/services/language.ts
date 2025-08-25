@@ -25,8 +25,7 @@ export function languageHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: Pr
           [{ text: ctx.i18n.t('admin.sessions') }, { text: ctx.i18n.t('admin.create_session') }],
           // @ts-ignore
           [{ text: ctx.i18n.t('admin.lists') }, { text: ctx.i18n.t('admin.approvals') }],
-          // @ts-ignore
-          [{ text: ctx.i18n.t('admin.winner_mom') }],
+
           // @ts-ignore
           [{ text: ctx.i18n.t('admin.demo_create') }, { text: ctx.i18n.t('admin.demo_pending') }],
           // @ts-ignore

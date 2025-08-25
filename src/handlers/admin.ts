@@ -84,8 +84,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
         [{ text: ctx.i18n.t('admin.sessions') }, { text: ctx.i18n.t('admin.create_session') }],
         // @ts-ignore
         [{ text: ctx.i18n.t('admin.lists') }, { text: ctx.i18n.t('admin.approvals') }],
-        // @ts-ignore
-        [{ text: ctx.i18n.t('admin.winner_mom') }],
+
         // @ts-ignore
         [{ text: ctx.i18n.t('admin.demo_create') }, { text: ctx.i18n.t('admin.demo_pending') }],
         // @ts-ignore
@@ -249,8 +248,12 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.action(/sess_reject_(.*)/, async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     const id = (ctx.match as any)[1];
-    await (prisma as any).sessionRegistration.update({ where: { id }, data: { status: 'REJECTED' } });
-    await ctx.reply('❌ Sessiya ro‘yxatdan o‘tish rad etildi');
+    
+    // Store the registration ID for the comment collection
+    (ctx.session as any).pendingRejectionId = id;
+    
+    await ctx.answerCbQuery();
+    await ctx.reply('❌ Rad etish sababini yozing:');
   });
 
   // stats entry is only accessible within a started session (via session view)
@@ -307,6 +310,31 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     if (!(ctx.state as any).isAdmin) return;
     const id = (ctx.match as any)[1];
     try {
+      // Validate session can be started: must have exactly 4 teams with exactly 7 players each
+      const s = await (prisma as any).session.findUnique({ 
+        where: { id }, 
+        include: { teams: { include: { team: { include: { members: true } } } } } 
+      });
+      if (!s) {
+        try { await ctx.answerCbQuery('Session not found'); } catch {}
+        return;
+      }
+      
+      const teams = s.teams || [];
+      if (teams.length !== 4) {
+        try { await ctx.answerCbQuery(`Aniq 4 ta jamoa kerak. Hozir: ${teams.length}`); } catch {}
+        return ctx.reply(`❌ Sessiyani boshlash uchun aniq 4 ta jamoa kerak. Hozir: ${teams.length} ta jamoa`);
+      }
+      
+      // Check each team has exactly 7 players
+      for (const team of teams) {
+        const memberCount = team.team?.members?.length || 0;
+        if (memberCount !== 7) {
+          try { await ctx.answerCbQuery(`${team.team.name} jamoasida ${memberCount} o'yinchi`); } catch {}
+          return ctx.reply(`❌ Har bir jamoada aniq 7 ta o'yinchi bo'lishi kerak.\n"${team.team.name}" jamoasida ${memberCount} ta o'yinchi bor.`);
+        }
+      }
+      
       try { await ctx.answerCbQuery('Starting…'); } catch {}
       await (prisma as any).session.update({ where: { id }, data: { status: 'STARTED' as any } });
       setTimeout(async () => {
@@ -363,7 +391,73 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     const sLines = topScorers.map((p: any, i: number) => `${i+1}. ${p.name} — ⚽ ${p.goals}`).join('\n') || '—';
     const aLines = topAssists.map((p: any, i: number) => `${i+1}. ${p.name} — 🅰️ ${p.assists}`).join('\n') || '—';
     await ctx.answerCbQuery();
-    await ctx.reply(`Top Scorers:\n${sLines}\n\nTop Assists:\n${aLines}`);
+    await ctx.reply(`Top Scorers:\n${sLines}\n\nTop Assists:\n${aLines}`, {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🏆 MVP tanlash', callback_data: `sess_mvp_${id}` }]
+        ]
+      }
+    });
+  });
+
+  // MVP selection handlers
+  bot.action(/sess_mvp_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const sessionId = (ctx.match as any)[1];
+    const session = await (prisma as any).session.findUnique({ 
+      where: { id: sessionId }, 
+      include: { teams: { include: { team: { include: { members: { include: { user: true } } } } } } } 
+    });
+    if (!session) return;
+    
+    const teamButtons = session.teams.map((st: any) => [{
+      text: st.team.name,
+      callback_data: `mvp_team_${sessionId}_${st.team.id}`
+    }]);
+    
+    await ctx.answerCbQuery();
+    await ctx.reply('MVP uchun jamoani tanlang:', { 
+      reply_markup: { inline_keyboard: teamButtons } 
+    });
+  });
+
+  bot.action(/mvp_team_(.*)_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const sessionId = (ctx.match as any)[1];
+    const teamId = (ctx.match as any)[2];
+    
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      include: { members: { include: { user: true } } }
+    });
+    if (!team) return;
+    
+    const playerButtons = team.members.map((member: any) => [{
+      text: `${member.user.firstName} ${member.user.lastName || ''}`.trim(),
+      callback_data: `mvp_select_${sessionId}_${member.user.id}`
+    }]);
+    
+    await ctx.answerCbQuery();
+    await ctx.reply(`${team.name} - MVP ni tanlang:`, { 
+      reply_markup: { inline_keyboard: playerButtons } 
+    });
+  });
+
+  bot.action(/mvp_select_(.*)_(.*)/, async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const sessionId = (ctx.match as any)[1];
+    const userId = (ctx.match as any)[2];
+    
+    await (prisma as any).session.update({ 
+      where: { id: sessionId }, 
+      data: { manOfTheSessionUserId: userId } 
+    });
+    
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const userName = user ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Unknown';
+    
+    await ctx.answerCbQuery('MVP belgilandi!');
+    await ctx.reply(`🏆 ${userName} MVP deb belgilandi!`);
   });
 
   bot.action(/sess_stats_entry_(.*)/, async (ctx) => {
@@ -419,6 +513,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     await (prisma as any).session.update({ where: { id: sid }, data: { manOfTheSessionUserId: userId } });
     await ctx.answerCbQuery('MoM belgilandi');
   });
+
 }
 
 

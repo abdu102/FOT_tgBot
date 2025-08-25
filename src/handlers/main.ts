@@ -123,6 +123,65 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
 
   bot.on('text', async (ctx, next) => {
     const sess = (ctx.session as any) || {};
+    
+    // Handle admin rejection comment
+    if (sess.pendingRejectionId && (ctx.state as any).isAdmin) {
+      const rejectionComment = (ctx.message as any)?.text?.trim();
+      const registrationId = sess.pendingRejectionId;
+      delete sess.pendingRejectionId;
+      
+      if (!rejectionComment) {
+        await ctx.reply('Sabab yozilmadi. Qaytadan urinib ko\'ring.');
+        return;
+      }
+      
+      // Get registration details for notification
+      const reg = await (prisma as any).sessionRegistration.findUnique({ 
+        where: { id: registrationId }, 
+        include: { session: true, user: true, team: { include: { members: { include: { user: true } } } }, payment: true } 
+      });
+      
+      if (!reg) {
+        await ctx.reply('Ro\'yxatdan o\'tish topilmadi.');
+        return;
+      }
+      
+      // Update registration status with rejection comment
+      await (prisma as any).sessionRegistration.update({ 
+        where: { id: registrationId }, 
+        data: { status: 'REJECTED', rejectionReason: rejectionComment } 
+      });
+      
+      await ctx.reply('❌ Sessiya ro\'yxatdan o\'tish rad etildi');
+      
+      // Notify affected users
+      try {
+        const s = reg.session!;
+        const { formatUzDayAndTimeRange } = await import('../utils/format');
+        const when = formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt));
+        const msg = `❌ Ro'yxatdan o'tish rad etildi\n🗓️ ${when}\n🏟️ ${(s as any).stadium || '-'}\n📍 ${(s as any).place || '-'}\n\n💬 Sabab: ${rejectionComment}`;
+        
+        if (reg.type === 'TEAM' && reg.team) {
+          for (const tm of reg.team.members) {
+            const tgId = tm.user?.telegramId;
+            if (tgId) { 
+              try { 
+                await (ctx.telegram as any).sendMessage(tgId, msg); 
+              } catch {} 
+            }
+          }
+        } else if (reg.user?.telegramId) {
+          try { 
+            await (ctx.telegram as any).sendMessage(reg.user.telegramId, msg); 
+          } catch {}
+        }
+      } catch (e) {
+        console.error('Error notifying rejection:', e);
+      }
+      
+      return;
+    }
+    
     // Legacy typed-date flow only if explicitly enabled
     if (sess.srDayAsk && sess.srType && !sess.srDay) {
       const day = (ctx.message as any).text.trim();
@@ -130,14 +189,14 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
       const startDay = new Date(`${day}T00:00:00`);
       const endDay = new Date(`${day}T23:59:59`);
       const list = await (prisma as any).session.findMany({ where: { startAt: { gte: startDay }, endAt: { lte: endDay }, status: 'PLANNED' }, orderBy: { startAt: 'asc' } });
-      if (!list.length) { await ctx.reply('Ushbu kunda sessiya yo‘q'); sess.srType = undefined; sess.srDay = undefined; return; }
+      if (!list.length) { await ctx.reply('Ushbu kunda sessiya yo\'q'); sess.srType = undefined; sess.srDay = undefined; return; }
       const rows = list.map((s: any) => [{ text: `${s.startAt.toISOString().slice(11,16)}–${s.endAt.toISOString().slice(11,16)} (${s.type})`, callback_data: `sr_pick_${s.id}` }]);
       await ctx.reply('Sessiyani tanlang', { reply_markup: { inline_keyboard: rows } } as any);
       return;
     }
     if (sess.awaitReceiptForRegId) {
       // ignore plain text while awaiting photo
-      return ctx.reply('Iltimos, to‘lov cheki suratini yuboring');
+      return ctx.reply('Iltimos, to\'lov cheki suratini yuboring');
     }
     return next();
   });

@@ -7,7 +7,11 @@ export async function addMatchStat(
   const { matchId, userId, goals, assists, won } = params;
   await prisma.matchStat.upsert({
     where: { matchId_userId: { matchId, userId } },
-    update: { goals, assists, won },
+    update: { 
+      goals: { increment: goals },
+      assists: { increment: assists },
+      won 
+    },
     create: { matchId, userId, goals, assists, won },
   });
   await updatePlayerAggregates(prisma, userId);
