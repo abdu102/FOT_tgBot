@@ -37,9 +37,12 @@ export function sessionViewScene(prisma: PrismaClient) {
     const id = (ctx.match as any)[1];
     try { await ctx.answerCbQuery('Starting…'); } catch {}
     try {
-      // Lock teams: approve list is transformed into SessionTeam
-      await autoFormSessionTeams(prisma as any, id);
+      // Mark started immediately
       await (prisma as any).session.update({ where: { id }, data: { status: 'STARTED' as any } });
+      // Run auto formation in background to avoid blocking Telegram timeouts
+      setTimeout(() => {
+        autoFormSessionTeams(prisma as any, id).catch((e: any) => console.error('autoFormSessionTeams error', e));
+      }, 0);
     } catch (e) {
       console.error('sess_start error', e);
     }
