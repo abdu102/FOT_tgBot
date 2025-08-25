@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import { createDemoSessionWithTeams, seedTwoTeamsAndSinglesPending } from '../services/demo';
 import { computeSessionTable, getSessionTopPlayers } from '../services/session';
 import { allocateIndividualToSession, ensureTeamInSession } from '../services/nabor';
+import { cleanupEphemeralTeams, enforceMaxTeamsForAllSessions } from '../services/maintenance';
 
 export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   // Helpers
@@ -95,6 +96,14 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.hears('🧪 Demo: create session + teams', async (ctx) => { if (!(ctx.state as any).isAdmin) return; try { await (ctx.scene as any).leave(); } catch {} const { sessionId } = await createDemoSessionWithTeams(prisma); await ctx.reply(`✅ Demo session created: ${sessionId}`); });
   bot.hears('🧪 Demo: pending regs', async (ctx) => { if (!(ctx.state as any).isAdmin) return; try { await (ctx.scene as any).leave(); } catch {} const { sessionId } = await seedTwoTeamsAndSinglesPending(prisma, { teams: 1, singles: 21 }); await ctx.reply(`✅ Demo pending regs created for session: ${sessionId}`); });
   bot.hears('🧪 Demo: pending regs', async (ctx) => { if (!(ctx.state as any).isAdmin) return; const { sessionId } = await seedTwoTeamsAndSinglesPending(prisma, { teams: 1, singles: 21 }); await ctx.reply(`✅ Demo pending regs created for session: ${sessionId}`); });
+
+  // Maintenance quick actions
+  bot.command('cleanup', async (ctx) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const res1 = await cleanupEphemeralTeams(prisma as any);
+    const res2 = await enforceMaxTeamsForAllSessions(prisma as any, 4);
+    await ctx.reply(`🧹 Cleanup done: removed ${res1.deletedTeams} ephemeral teams, fixed ${res2.deletedSessionTeams} session-team links, deleted ${res2.deletedEphemeralTeams} stray NABOR teams.`);
+  });
 
   bot.action('open_admin_panel', async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;

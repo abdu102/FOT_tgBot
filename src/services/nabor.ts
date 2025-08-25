@@ -10,7 +10,7 @@ export async function ensureTeamInSession(prisma: PrismaClient, sessionId: strin
 
 export async function allocateIndividualToSession(prisma: PrismaClient, sessionId: string, userId: string) {
   // Find existing NABOR teams in this session and pick one with < 7 members
-  const naborTeams = await (prisma as any).sessionTeam.findMany({ where: { sessionId }, include: { team: { include: { members: true } } } });
+  const naborTeams = await (prisma as any).sessionTeam.findMany({ where: { sessionId }, include: { team: { include: { members: true } } }, take: 10 });
   let targetTeamId: string | null = null;
   for (const st of naborTeams) {
     if (st.team?.name?.startsWith(NABOR_PREFIX)) {

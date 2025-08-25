@@ -25,10 +25,11 @@ export async function autoFormSessionTeams(prisma: PrismaClient, sessionId: stri
     .filter((r: any) => (r.team?.members?.length || 0) >= teamSize)
     .map((r: any) => r.teamId as string);
 
-  // Approved singles (optional)
+  // Approved singles (optional) — cap to teamSize*4 so we never form more than 4 teams
   let singles: any[] = [];
   try {
-    singles = await (prisma as any).sessionRegistration.findMany({ where: { sessionId, status: 'APPROVED', type: 'INDIVIDUAL' } });
+    const cap = teamSize * 4;
+    singles = await (prisma as any).sessionRegistration.findMany({ where: { sessionId, status: 'APPROVED', type: 'INDIVIDUAL' }, take: cap });
   } catch {
     singles = [];
   }
