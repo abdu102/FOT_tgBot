@@ -190,14 +190,14 @@ enum RegistrationStatus {
 
 model Payment {
   id                    String               @id @default(cuid())
-  registrationId        String               @unique
+  registrationId        String?              @unique
   amount                Int
   method                String // MANUAL, PAYME, CLICK
   status                PaymentStatus        @default(PENDING)
   createdAt             DateTime             @default(now())
   confirmedAt           DateTime?
   receiptFileId         String?
-  registration          Registration         @relation(fields: [registrationId], references: [id])
+  registration          Registration?        @relation(fields: [registrationId], references: [id])
   userId                String?
   teamId                String?
   user                  User?                @relation(fields: [userId], references: [id])
