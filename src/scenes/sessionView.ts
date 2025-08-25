@@ -69,6 +69,13 @@ export function sessionViewScene(prisma: PrismaClient) {
     rows.push([{ text: '⬅️ Back', callback_data: `sess_open_${id}` }]);
     await ctx.reply('Sessiya matchlari:', { reply_markup: { inline_keyboard: rows } } as any);
   });
+
+  // Back to sessions list from session view
+  (scene as any).action?.('admin_sessions', async (ctx: any) => {
+    try { await ctx.answerCbQuery(); } catch {}
+    try { await ctx.deleteMessage(); } catch {}
+    await ctx.scene.enter('admin:sessions');
+  });
   (scene as any).action?.(/sess_m_(.*)/, async (ctx: any) => {
     const mid = (ctx.match as any)[1];
     const m = await prisma.match.findUnique({ where: { id: mid }, include: { homeTeam: true, awayTeam: true } });
