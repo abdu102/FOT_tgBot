@@ -227,6 +227,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   bot.action(/sess_open_(.*)/, async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
     try { await ctx.answerCbQuery(); } catch {}
+    // Do not rely on edit/delete; always open view with a fresh message
     await ctx.scene.enter('admin:sessionView', { sessionId: (ctx.match as any)[1] });
   });
 

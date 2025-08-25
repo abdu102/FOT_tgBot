@@ -30,8 +30,7 @@ export function sessionViewScene(prisma: PrismaClient) {
       actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
       actions.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
       const text = `${header}\n${info}\n\n${table}`;
-      try { await (ctx as any).editMessageText(text, { reply_markup: { inline_keyboard: actions } } as any); }
-      catch { await ctx.reply(text, { reply_markup: { inline_keyboard: actions } } as any); }
+      await ctx.reply(text, { reply_markup: { inline_keyboard: actions } } as any);
       return;
     }
   );
@@ -64,11 +63,7 @@ export function sessionViewScene(prisma: PrismaClient) {
         actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
         actions.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
         const text = `${header}\n${info}\n\n${table}`;
-        try { await (ctx as any).editMessageText(text, { reply_markup: { inline_keyboard: actions } } as any); }
-        catch {
-          try { await ctx.deleteMessage(); } catch {}
-          await ctx.reply(text, { reply_markup: { inline_keyboard: actions } } as any);
-        }
+        await ctx.reply(text, { reply_markup: { inline_keyboard: actions } } as any);
         return;
       }
     } catch (e) {
