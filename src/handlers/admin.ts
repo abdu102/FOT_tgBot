@@ -10,27 +10,32 @@ import { cleanupEphemeralTeams, enforceMaxTeamsForAllSessions } from '../service
 export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: PrismaClient) {
   // Helpers
   const sendSessionView = async (ctx: any, id: string) => {
-    const s = await (prisma as any).session.findUnique({ where: { id }, include: { matches: true, teams: { include: { team: true } } } });
-    if (!s) { await ctx.reply('Session topilmadi'); return; }
-    const typeLabel = (s as any).type === 'SIX_V_SIX' ? '6v6' : '5v5';
-    const header = `🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}  [${s.status}]`;
-    const info = [`🏟️ ${((s as any).stadium || '-')}`, `📍 ${((s as any).place || '-')}`, `🧩 ${typeLabel}`, `👥 ${s.teams.length}/${(s as any).maxTeams || 4}`].join('\n');
-    const maxRows = 20;
-    const rows = s.teams.map((t: any) => `${t.team.name}: ${t.points} pts (GF ${t.goalsFor}/GA ${t.goalsAgainst})`);
-    const table = rows.slice(0, maxRows).join('\n') + (rows.length > maxRows ? `\n… and ${rows.length - maxRows} more` : rows.length ? '' : 'Hali jamoalar yo‘q');
-    const actions: any[] = [];
-    if ((s as any).status === 'PLANNED') {
-      actions.push([{ text: '▶️ Start', callback_data: `sess_start_${s.id}` }]);
-    } else if ((s as any).status === 'STARTED') {
-      actions.push([{ text: '⏹ Stop', callback_data: `sess_stop_${s.id}` }]);
-      actions.push([{ text: '➕ Match qo‘shish', callback_data: `sess_add_match_${s.id}` }]);
-      actions.push([{ text: '📜 Matches', callback_data: `sess_matches_${s.id}` }]);
-      actions.push([{ text: '📊 Statistika kiritish', callback_data: `sess_stats_entry_${s.id}` }]);
+    try {
+      const s = await (prisma as any).session.findUnique({ where: { id }, include: { teams: { include: { team: true } } } });
+      if (!s) { await ctx.reply('Session topilmadi'); return; }
+      const typeLabel = (s as any).type === 'SIX_V_SIX' ? '6v6' : '5v5';
+      const header = `🗓️ ${s.startAt.toISOString().slice(0,16).replace('T',' ')}–${s.endAt.toISOString().slice(0,16).replace('T',' ')}  [${s.status}]`;
+      const info = [`🏟️ ${((s as any).stadium || '-')}`, `📍 ${((s as any).place || '-')}`, `🧩 ${typeLabel}`, `👥 ${s.teams.length}/${(s as any).maxTeams || 4}`].join('\n');
+      // Keep the body small to avoid 413
+      const list = (s.teams || []).slice(0, 10).map((t: any) => `• ${t.team.name}`).join('\n');
+      const tail = (s.teams || []).length > 10 ? `\n…` : (s.teams || []).length ? '' : 'Hali jamoalar yo‘q';
+      const actions: any[] = [];
+      if ((s as any).status === 'PLANNED') {
+        actions.push([{ text: '▶️ Start', callback_data: `sess_start_${s.id}` }]);
+      } else if ((s as any).status === 'STARTED') {
+        actions.push([{ text: '⏹ Stop', callback_data: `sess_stop_${s.id}` }]);
+        actions.push([{ text: '➕ Match qo‘shish', callback_data: `sess_add_match_${s.id}` }]);
+        actions.push([{ text: '📜 Matches', callback_data: `sess_matches_${s.id}` }]);
+        actions.push([{ text: '📊 Statistika kiritish', callback_data: `sess_stats_entry_${s.id}` }]);
+      }
+      actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
+      actions.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
+      const text = `${header}\n${info}\n\n${list || ''}${tail}`;
+      await ctx.reply(text, { reply_markup: { inline_keyboard: actions } } as any);
+    } catch (e) {
+      console.error('sendSessionView error', e);
+      try { await ctx.reply('Xatolik: sessiya ko‘rinmadi'); } catch {}
     }
-    actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
-    actions.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
-    const text = `${header}\n${info}\n\n${table}`;
-    await ctx.reply(text, { reply_markup: { inline_keyboard: actions } } as any);
   };
   const sendApprovalSessionsList = async (ctx: any) => {
     const sessions = await (prisma as any).session.findMany({
