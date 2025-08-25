@@ -181,6 +181,20 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     await (prisma as any).sessionRegistration.update({ where: { id }, data: { status: 'APPROVED', approvedAt: new Date() } });
     if (reg.payment?.id) { await (prisma as any).payment.update({ where: { id: reg.payment.id }, data: { status: 'CONFIRMED' } }); }
     await ctx.reply('✅ Sessiya ro‘yxatdan o‘tish tasdiqlandi');
+    // Notify involved users
+    try {
+      const s = reg.session!;
+      const when = formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt));
+      const msg = `✅ Ro‘yxat tasdiqlandi\n🗓️ ${when}\n🏟️ ${(s as any).stadium || '-'}\n📍 ${(s as any).place || '-'}`;
+      if (reg.type === 'TEAM' && reg.team) {
+        for (const tm of reg.team.members) {
+          const tgId = tm.user?.telegramId;
+          if (tgId) { try { await (ctx.telegram as any).sendMessage(tgId, msg); } catch {} }
+        }
+      } else if (reg.user?.telegramId) {
+        try { await (ctx.telegram as any).sendMessage(reg.user.telegramId, msg); } catch {}
+      }
+    } catch {}
   });
 
   bot.action(/sess_reject_(.*)/, async (ctx) => {

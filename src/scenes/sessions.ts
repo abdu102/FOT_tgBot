@@ -47,6 +47,19 @@ export function sessionsScene(prisma: PrismaClient) {
       }
 
       await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any);
+      // Also show upcoming sessions (2 weeks) with pagination (5 per page)
+      try {
+        const now = new Date();
+        const end = new Date(now);
+        end.setDate(end.getDate() + 14);
+        const pageSize = 5;
+        const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: now, lte: end } }, orderBy: { startAt: 'asc' }, take: pageSize, skip: 0 });
+        const makeRows = (items: any[]) => items.map((s: any) => [{ text: `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${uzTypeLabel(s.type)})`, callback_data: `sess_open_${s.id}` }]);
+        const nav = [{ text: '»', callback_data: `sess_list_1` }];
+        const rows2 = makeRows(sessions);
+        rows2.push(nav);
+        await ctx.reply('Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows2 } } as any);
+      } catch {}
       return;
     },
   );
@@ -102,6 +115,27 @@ export function sessionsScene(prisma: PrismaClient) {
     catch { await ctx.reply('Kunni tanlang', { reply_markup: { inline_keyboard: rows } } as any); }
   });
 
+  // Pagination for upcoming sessions
+  (scene as any).action?.(/sess_list_(\d+)/, async (ctx: any) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const page = parseInt((ctx.match as any)[1], 10) || 0;
+    const now = new Date();
+    const end = new Date(now);
+    end.setDate(end.getDate() + 14);
+    const pageSize = 5;
+    const skip = page * pageSize;
+    const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: now, lte: end } }, orderBy: { startAt: 'asc' }, take: pageSize, skip });
+    const makeRows = (items: any[]) => items.map((s: any) => [{ text: `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${uzTypeLabel(s.type)})`, callback_data: `sess_open_${s.id}` }]);
+    const rows = makeRows(sessions);
+    const navRow: any[] = [];
+    if (page > 0) navRow.push({ text: '«', callback_data: `sess_list_${page - 1}` });
+    if (sessions.length === pageSize) navRow.push({ text: '»', callback_data: `sess_list_${page + 1}` });
+    if (navRow.length) rows.push(navRow);
+    try { await ctx.answerCbQuery(); } catch {}
+    try { await (ctx as any).editMessageReplyMarkup({ inline_keyboard: rows } as any); }
+    catch { await ctx.reply('Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any); }
+  });
+
   (scene as any).action?.(/sess_create_(.*)/, async (ctx: any) => {
     if (!(ctx.state as any).isAdmin) return;
     const day = (ctx.match as any)[1] as string;
@@ -117,15 +151,11 @@ export function sessionsScene(prisma: PrismaClient) {
       await ctx.reply('Tugash vaqti (HH:mm)');
       return;
     }
-    if (sess.sessCreateDay && sess.sessCreateStart && !sess.sessCreateTypeAsked) {
+    if (sess.sessCreateDay && sess.sessCreateStart && !sess.sessCreateEnd) {
       const end = `${sess.sessCreateDay}T${(ctx.message as any).text.trim()}:00`;
       sess.sessCreateEnd = end;
-      const kb = { inline_keyboard: [[
-        { text: '5v5', callback_data: 'sess_type_5' },
-        { text: '6v6', callback_data: 'sess_type_6' }
-      ]] };
-      sess.sessCreateTypeAsked = true;
-      await ctx.reply('Turi? (5v5 / 6v6)', { reply_markup: kb } as any);
+      sess.awaitingStadium = true;
+      await ctx.reply('Stadion nomi?');
       return;
     }
     if (sess.sessCreateDay && sess.sessCreateStart && sess.sessCreateEnd && sess.awaitingStadium) {
@@ -138,7 +168,6 @@ export function sessionsScene(prisma: PrismaClient) {
     if (sess.sessCreateDay && sess.sessCreateStart && sess.sessCreateEnd && sess.awaitingPlace) {
       sess.place = (ctx.message as any).text.trim();
       sess.awaitingPlace = false;
-      await ctx.reply('Turi tanlash');
       const kb = { inline_keyboard: [[
         { text: '5v5', callback_data: 'sess_type_5' },
         { text: '6v6', callback_data: 'sess_type_6' }

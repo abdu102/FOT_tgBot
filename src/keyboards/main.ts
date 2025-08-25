@@ -7,6 +7,7 @@ export function buildMainKeyboard(ctx: Scenes.WizardContext) {
   return Markup.keyboard([
     [uz ? '⚽ Haftalik o‘yinlar' : '⚽ Еженедельные матчи'],
     [uz ? '👥 Jamoa' : '👥 Команда'],
+    [uz ? '📅 Mening sessiyalarim' : '📅 Мои сессии'],
     [uz ? '👤 Profil' : '👤 Профиль'],
     [uz ? '🌐 Til: UZ/RU' : '🌐 Язык: UZ/RU'],
   ]).resize();

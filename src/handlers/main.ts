@@ -143,6 +143,33 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     await ctx.reply('🧾 Jamoa bilan ro‘yxatga olindi. To‘lov va tasdiqlash kutilmoqda.');
   });
 
+  // User: show approved upcoming session registrations
+  bot.hears(['📅 Mening sessiyalarim'], async (ctx) => {
+    const userId = (ctx.state as any).userId as string;
+    const now = new Date();
+    const regs = await (prisma as any).sessionRegistration.findMany({
+      where: {
+        status: 'APPROVED',
+        OR: [
+          { userId },
+          { team: { members: { some: { userId } } } },
+        ],
+        session: { startAt: { gte: now } },
+      },
+      include: { session: true, team: true },
+      orderBy: { session: { startAt: 'asc' } },
+      take: 10,
+    });
+    if (!regs.length) return ctx.reply('Kelgusi sessiyalar tasdiqlanmagan.');
+    const lines = regs.map((r: any) => {
+      const s = r.session!;
+      const label = formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt));
+      const who = r.type === 'TEAM' ? `Jamoa: ${r.team?.name}` : 'Yakka';
+      return `• ${label} · ${who}`;
+    }).join('\n');
+    await ctx.reply(`📅 Tasdiqlangan sessiyalarim:\n${lines}`);
+  });
+
   bot.hears(['👤 Profil', '👤 Профиль'], async (ctx) => {
     const userId = (ctx.state as any).userId as string;
     const u = await prisma.user.findUnique({ where: { id: userId }, include: { stats: true } });
