@@ -192,9 +192,19 @@ export function sessionViewScene(prisma: PrismaClient) {
 
   // Stats entry available only via session view when started
   (scene as any).action?.(/sess_stats_entry_(.*)/, async (ctx: any) => {
+    console.log('DEBUG: SessionView scene sess_stats_entry handler triggered');
     const id = (ctx.match as any)[1];
+    console.log('DEBUG: SessionView handler - Session ID:', id);
+    
     const s = await (prisma as any).session.findUnique({ where: { id } });
-    if (!s || (s as any).status !== 'STARTED') return ctx.answerCbQuery('Session not started');
+    if (!s || (s as any).status !== 'STARTED') {
+      console.log('DEBUG: SessionView - Session not found or not started');
+      return ctx.answerCbQuery('Session not started');
+    }
+    
+    console.log('DEBUG: SessionView - About to answer callback and enter scene');
+    await ctx.answerCbQuery();
+    console.log('DEBUG: SessionView - Entering admin:sessionMatchStats scene with sessionId:', id);
     await ctx.scene.enter('admin:sessionMatchStats', { sessionId: id });
   });
 

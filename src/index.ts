@@ -108,6 +108,8 @@ bot.start(async (ctx) => {
         [{ text: ctx.i18n.t('admin.winner_mom') }],
         // @ts-ignore
         [{ text: ctx.i18n.t('admin.demo_create') }, { text: ctx.i18n.t('admin.demo_pending') }],
+        // @ts-ignore
+        [{ text: ctx.i18n.t('menu.language') }],
       ],
       resize_keyboard: true,
       one_time_keyboard: false,

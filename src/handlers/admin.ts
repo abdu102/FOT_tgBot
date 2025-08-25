@@ -88,6 +88,8 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
         [{ text: ctx.i18n.t('admin.winner_mom') }],
         // @ts-ignore
         [{ text: ctx.i18n.t('admin.demo_create') }, { text: ctx.i18n.t('admin.demo_pending') }],
+        // @ts-ignore
+        [{ text: ctx.i18n.t('menu.language') }],
       ],
       resize_keyboard: true,
       one_time_keyboard: false,
@@ -365,11 +367,23 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   });
 
   bot.action(/sess_stats_entry_(.*)/, async (ctx) => {
-    if (!(ctx.state as any).isAdmin) return;
+    console.log('DEBUG: Global sess_stats_entry handler triggered');
+    if (!(ctx.state as any).isAdmin) {
+      console.log('DEBUG: Not admin, returning');
+      return;
+    }
     const id = (ctx.match as any)[1];
+    console.log('DEBUG: Session ID:', id);
+    
     const s = await (prisma as any).session.findUnique({ where: { id } });
-    if (!s || (s as any).status !== 'STARTED') return ctx.answerCbQuery('Session not started');
+    if (!s || (s as any).status !== 'STARTED') {
+      console.log('DEBUG: Session not found or not started');
+      return ctx.answerCbQuery('Session not started');
+    }
+    
+    console.log('DEBUG: About to answer callback and enter scene');
     await ctx.answerCbQuery();
+    console.log('DEBUG: Entering admin:sessionMatchStats scene with sessionId:', id);
     await ctx.scene.enter('admin:sessionMatchStats', { sessionId: id });
   });
 

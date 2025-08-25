@@ -7,25 +7,31 @@ export function matchStatsScene(prisma: PrismaClient) {
     'admin:sessionMatchStats',
     // Step 1: Show teams in session
     async (ctx) => {
+      console.log('DEBUG: sessionMatchStats scene step 1 entered');
+      
       if (!(ctx.state as any).isAdmin) { 
+        console.log('DEBUG: User is not admin');
         // @ts-ignore
         await ctx.reply(ctx.i18n.t('admin.only_admin')); 
         return ctx.scene.leave(); 
       }
       
-      // Get sessionId from scene entry parameters
-      const sessionId = (ctx.scene.state as any)?.sessionId || (ctx.scene.session as any)?.sessionId;
-      console.log('Scene state:', ctx.scene.state);
-      console.log('Scene session:', ctx.scene.session);
+      // Get sessionId from scene entry parameters - the second parameter to ctx.scene.enter becomes ctx.scene.state
+      console.log('DEBUG: Full ctx.scene object:', JSON.stringify(ctx.scene, null, 2));
+      console.log('DEBUG: ctx.scene.state:', ctx.scene.state);
+      console.log('DEBUG: ctx.scene.session:', ctx.scene.session);
+      
+      const sessionId = (ctx.scene.state as any)?.sessionId;
+      console.log('DEBUG: Extracted sessionId:', sessionId);
       
       if (!sessionId) { 
-        console.error('No sessionId found in scene params');
+        console.error('DEBUG: No sessionId found in scene params');
         // @ts-ignore
         await ctx.reply(ctx.i18n.t('admin.session_not_found')); 
         return ctx.scene.leave(); 
       }
       
-      console.log('Stats entry scene entered with sessionId:', sessionId);
+      console.log('DEBUG: Stats entry scene working with sessionId:', sessionId);
       
       // Get teams in the session
       const sessionTeams = await (prisma as any).sessionTeam.findMany({
