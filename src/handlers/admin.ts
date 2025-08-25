@@ -254,10 +254,17 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   // Open session view from anywhere (for Back buttons)
   bot.action(/sess_open_(.*)/, async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
+    const id = (ctx.match as any)[1];
     try { await ctx.answerCbQuery('Ochilmoqda…'); } catch {}
     try { await (ctx.scene as any).leave(); } catch {}
-    const id = (ctx.match as any)[1];
-    await sendSessionView(ctx, id);
+    // Remove the sessions list message to stop it from reappearing/looping
+    try { await (ctx as any).deleteMessage(); } catch {}
+    try {
+      await sendSessionView(ctx, id);
+    } catch (e) {
+      console.error('sess_open failed', id, e);
+      try { await ctx.reply('Xatolik: sessiyani ochib bo‘lmadi'); } catch {}
+    }
   });
 
   bot.action('admin_demo_seed', async (ctx) => {
