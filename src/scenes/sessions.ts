@@ -165,6 +165,15 @@ export function sessionsScene(prisma: PrismaClient) {
     }
   });
 
+  // Ensure stats entry works even when triggered from within this scene
+  (scene as any).action?.(/sess_stats_entry_(.*)/, async (ctx: any) => {
+    if (!(ctx.state as any).isAdmin) return;
+    const id = (ctx.match as any)[1];
+    try { await ctx.answerCbQuery(); } catch {}
+    try { await ctx.scene.leave(); } catch {}
+    await ctx.scene.enter('admin:sessionMatchStats', { sessionId: id });
+  });
+
   // Removed day picking calendar; admin sees only upcoming list and can create via keyboard or typed flow
 
   return scene;

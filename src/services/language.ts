@@ -13,15 +13,35 @@ export function languageHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: Pr
       await prisma.user.update({ where: { id: userId }, data: { language: next } });
     }
     const isAuthenticated = Boolean((ctx.state as any).isAuthenticated);
-    
-    // Choose appropriate keyboard based on auth status
-    let keyboard;
-    if (isAuthenticated) {
+    const isAdmin = Boolean((ctx.state as any).isAdmin);
+
+    // Build reply keyboard depending on role/auth
+    let keyboard: any;
+    if (isAdmin) {
+      // Reuse admin keyboard layout from /start
+      const adminKeyboard = {
+        keyboard: [
+          // @ts-ignore
+          [{ text: ctx.i18n.t('admin.sessions') }, { text: ctx.i18n.t('admin.create_session') }],
+          // @ts-ignore
+          [{ text: ctx.i18n.t('admin.lists') }, { text: ctx.i18n.t('admin.approvals') }],
+          // @ts-ignore
+          [{ text: ctx.i18n.t('admin.winner_mom') }],
+          // @ts-ignore
+          [{ text: ctx.i18n.t('admin.demo_create') }, { text: ctx.i18n.t('admin.demo_pending') }],
+          // @ts-ignore
+          [{ text: ctx.i18n.t('menu.language') }],
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false,
+      } as any;
+      keyboard = adminKeyboard;
+    } else if (isAuthenticated) {
       keyboard = buildMainKeyboard(ctx);
     } else {
       keyboard = buildWelcomeKeyboard(ctx);
     }
-    
+
     await ctx.reply(next === 'uz' ? '🌐 Til UZ ga o\'zgardi' : '🌐 Язык изменён на RU', keyboard);
   });
 }
