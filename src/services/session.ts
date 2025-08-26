@@ -88,6 +88,11 @@ export async function listAvailableSessions(
   startInclusive: Date,
   endInclusive: Date
 ) {
+  const key = `sess:list:${startInclusive.toISOString().slice(0,10)}:${endInclusive.toISOString().slice(0,10)}`;
+  try {
+    const cached = await cache.get(key);
+    if (cached) return JSON.parse(cached);
+  } catch {}
   const sessions = await (prisma as any).session.findMany({
     where: {
       startAt: { gte: startInclusive, lte: endInclusive },
@@ -114,7 +119,9 @@ export async function listAvailableSessions(
     return fullTeams < maxTeams;
   };
 
-  return sessions.filter(notFull);
+  const result = sessions.filter(notFull);
+  try { await cache.setex(key, 60, JSON.stringify(result)); } catch {}
+  return result;
 }
 
 
