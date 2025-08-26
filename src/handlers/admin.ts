@@ -167,14 +167,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     }
   });
 
-  // Seed demo pending registrations from inline button
-  bot.action('admin_seed_pending', async (ctx) => {
-    if (!(ctx.state as any).isAdmin) return;
-    try { await ctx.answerCbQuery(); } catch {}
-    const { sessionId } = await seedTwoTeamsAndSinglesPending(prisma, { teams: 1, singles: 21 });
-    await ctx.reply(`✅ Demo pending regs created for session: ${sessionId}`);
-    await sendApprovalSessionsList(ctx);
-  });
+  // Demo seed inline button removed
 
   // Select a session to see its pending registrations
   bot.action(/sess_appr_s_(.*)/, async (ctx) => {
@@ -294,11 +287,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     }
   });
 
-  bot.action('admin_demo_seed', async (ctx) => {
-    if (!(ctx.state as any).isAdmin) return;
-    const { sessionId } = await createDemoSessionWithTeams(prisma);
-    await ctx.reply(`✅ Demo session created: ${sessionId}`);
-  });
+  // Demo seed action removed
 
   // Global fallbacks for session view actions (in case scene is not active)
   bot.action(/sess_start_(.*)/, async (ctx) => {
