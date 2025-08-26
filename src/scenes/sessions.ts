@@ -191,10 +191,9 @@ export function sessionsScene(prisma: PrismaClient) {
     if (text) {
       // If admin clicks other admin buttons, leave the scene and manually trigger the appropriate handler
       if (text.match(/➕ Sessiya yaratish|➕ Создать сессию/)) {
-        console.log('DEBUG: Admin clicked create session while in sessions scene, leaving and entering create mode');
-        try { await ctx.scene.leave(); } catch {}
-        // Directly enter the sessions scene in create mode
-        await ctx.scene.enter('admin:sessions', { createOnly: true });
+        console.log('DEBUG: Admin clicked create session while in sessions scene, switching to create mode');
+        // Instead of re-entering the scene, just show the calendar directly
+        await showCalendar(ctx);
         return;
       }
       if (text.match(/✅ Tasdiqlash|✅ Подтвердить/)) {
