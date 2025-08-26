@@ -10,6 +10,7 @@ export function sessionsScene(prisma: PrismaClient) {
       if (!(ctx.state as any).isAdmin) { await ctx.reply('Faqat admin'); return; }
       // If entering in create-only mode, start creation flow without calendar
       if ((ctx.scene.state as any)?.createOnly) {
+        console.log('DEBUG: Sessions scene entered in createOnly mode, asking for date');
         (ctx.session as any).sessCreateAskDay = true;
         await ctx.reply('Kunni kiriting (YYYY-MM-DD)');
         return;
