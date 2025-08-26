@@ -178,6 +178,7 @@ model SessionRegistration {
   user            User?              @relation(fields: [userId], references: [id])
   team            Team?              @relation(fields: [teamId], references: [id])
   payment         Payment?
+  coupons         Coupon[]
 }
 
 enum RegistrationType {
