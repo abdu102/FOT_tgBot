@@ -18,16 +18,13 @@ export function languageHandlers(bot: Telegraf<Scenes.WizardContext>, prisma: Pr
     // Build reply keyboard depending on role/auth
     let keyboard: any;
     if (isAdmin) {
-      // Reuse admin keyboard layout from /start
+      // Reuse admin keyboard layout from /start (without demo buttons)
       const adminKeyboard = {
         keyboard: [
           // @ts-ignore
           [{ text: ctx.i18n.t('admin.sessions') }, { text: ctx.i18n.t('admin.create_session') }],
           // @ts-ignore
           [{ text: ctx.i18n.t('admin.lists') }, { text: ctx.i18n.t('admin.approvals') }],
-
-          // @ts-ignore
-          [{ text: ctx.i18n.t('admin.demo_create') }, { text: ctx.i18n.t('admin.demo_pending') }],
           // @ts-ignore
           [{ text: ctx.i18n.t('menu.language') }],
         ],

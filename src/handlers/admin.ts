@@ -1,6 +1,6 @@
 import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
-import { createDemoSessionWithTeams, seedTwoTeamsAndSinglesPending } from '../services/demo';
+// import { createDemoSessionWithTeams, seedTwoTeamsAndSinglesPending } from '../services/demo';
 import { computeSessionTable, getSessionTopPlayers } from '../services/session';
 import { editOrReply, safeAnswerCb } from '../utils/telegram';
 import { formatUzDayAndTimeRange, uzPaymentStatus, uzTypeLabel } from '../utils/format';
@@ -89,9 +89,6 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
         [{ text: ctx.i18n.t('admin.sessions') }, { text: ctx.i18n.t('admin.create_session') }],
         // @ts-ignore
         [{ text: ctx.i18n.t('admin.lists') }, { text: ctx.i18n.t('admin.approvals') }],
-
-        // @ts-ignore
-        [{ text: ctx.i18n.t('admin.demo_create') }, { text: ctx.i18n.t('admin.demo_pending') }],
         // @ts-ignore
         [{ text: ctx.i18n.t('menu.language') }],
       ],
@@ -142,18 +139,7 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     try { await (ctx.scene as any).leave(); } catch {} 
     await ctx.scene.enter('admin:winners'); 
   });
-  bot.hears([/🧪 Demo: sessiya \+ jamoalar/, /🧪 Демо: сессия \+ команды/], async (ctx) => { 
-    if (!(ctx.state as any).isAdmin) return; 
-    try { await (ctx.scene as any).leave(); } catch {} 
-    const { sessionId } = await createDemoSessionWithTeams(prisma); 
-    await ctx.reply(`✅ Demo session created: ${sessionId}`); 
-  });
-  bot.hears([/🧪 Demo: kutilayotgan arizalar/, /🧪 Демо: ожидающие заявки/], async (ctx) => { 
-    if (!(ctx.state as any).isAdmin) return; 
-    try { await (ctx.scene as any).leave(); } catch {} 
-    const { sessionId } = await seedTwoTeamsAndSinglesPending(prisma, { teams: 1, singles: 21 }); 
-    await ctx.reply(`✅ Demo pending regs created for session: ${sessionId}`); 
-  });
+  // Demo seed handlers removed from UI
 
   // Maintenance quick actions
   bot.command('cleanup', async (ctx) => {
