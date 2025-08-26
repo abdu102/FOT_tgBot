@@ -186,6 +186,32 @@ export function sessionsScene(prisma: PrismaClient) {
       return;
     }
     
+    // Handle admin navigation while in sessions scene
+    const text = (ctx.message as any)?.text?.trim();
+    if (text) {
+      // If admin clicks other admin buttons, leave the scene and let global handlers take over
+      if (text.match(/➕ Sessiya yaratish|➕ Создать сессию/)) {
+        console.log('DEBUG: Admin clicked create session while in sessions scene, leaving and delegating');
+        try { await ctx.scene.leave(); } catch {}
+        return next(); // Let the global handler handle this
+      }
+      if (text.match(/✅ Tasdiqlash|✅ Подтвердить/)) {
+        console.log('DEBUG: Admin clicked approvals while in sessions scene, leaving and delegating');
+        try { await ctx.scene.leave(); } catch {}
+        return next(); // Let the global handler handle this
+      }
+      if (text.match(/🧾 Ro'yxatlar|🧾 Списки/)) {
+        console.log('DEBUG: Admin clicked lists while in sessions scene, leaving and delegating');
+        try { await ctx.scene.leave(); } catch {}
+        return next(); // Let the global handler handle this
+      }
+      if (text.match(/🧪 Demo/)) {
+        console.log('DEBUG: Admin clicked demo while in sessions scene, leaving and delegating');
+        try { await ctx.scene.leave(); } catch {}
+        return next(); // Let the global handler handle this
+      }
+    }
+    
     return next();
   });
 
