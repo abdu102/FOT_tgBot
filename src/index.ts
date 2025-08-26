@@ -7,6 +7,10 @@ import fs from 'fs';
 import express from 'express';
 import { spawn } from 'child_process';
 import { buildMainKeyboard, buildAuthKeyboard, buildWelcomeKeyboard } from './keyboards/main';
+import redis from './config/redis';
+import RedisSession from 'telegraf-session-redis';
+import { collectDefaultMetrics, register } from 'prom-client';
+import { messageCounter } from './utils/telegram';
 import { registerScenes } from './scenes';
 import { authMiddleware } from './middlewares/auth';
 import { ensureUserMiddleware } from './middlewares/ensureUser';
@@ -20,6 +24,8 @@ import { registerCancelHandlers } from './handlers/cancel';
 import { registerPaymentHandlers } from './handlers/payments';
 
 const prisma = new PrismaClient();
+
+// Redis client for sessions and caching
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 if (!BOT_TOKEN) {
@@ -39,9 +45,34 @@ const i18n = new I18n({
 });
 
 const bot = new Telegraf<Scenes.WizardContext>(BOT_TOKEN);
-bot.use(session());
+
+// Redis-backed session storage (scales across instances)
+try {
+  const redisSession = new (RedisSession as any)({ store: redis, ttl: 60 * 60 });
+  bot.use(redisSession);
+} catch (e) {
+  console.error('Failed to initialize Redis session store; falling back to in-memory session', e);
+  bot.use(session());
+}
 // @ts-ignore - types augmented in src/types
 bot.use(i18n.middleware());
+// Simple per-user rate limiting (30 actions/min)
+bot.use(async (ctx, next) => {
+  const userKey = ctx.from ? `rate:${ctx.from.id}` : null;
+  if (!userKey) return next();
+  try {
+    const cnt = await redis.incr(userKey);
+    if (cnt === 1) {
+      await redis.expire(userKey, 60);
+    }
+    if (cnt > Number(process.env.RATE_LIMIT_MAX || 60)) {
+      try { await (ctx as any).reply('Juda tez. Iltimos, bir oz kuting.'); } catch {}
+      return;
+    }
+  } catch {}
+  return next();
+});
+
 bot.use(authMiddleware(prisma));
 bot.use(ensureUserMiddleware(prisma));
 
@@ -51,10 +82,17 @@ bot.use(ensureUserMiddleware(prisma));
     try { 
       console.log('CB:', (ctx.callbackQuery as any)?.data); 
       console.log('DEBUG: Current scene:', (ctx.scene as any)?.current?.id || 'NO_SCENE');
+      try { messageCounter.inc({ type: 'callback' }); } catch {}
     } catch {} 
     return next(); 
   });
-  bot.on('text', async (ctx, next) => { try { console.log('TXT:', (ctx.message as any)?.text); } catch {} return next(); });
+  bot.on('text', async (ctx, next) => { 
+    try { 
+      console.log('TXT:', (ctx.message as any)?.text); 
+      try { messageCounter.inc({ type: 'text' }); } catch {}
+    } catch {} 
+    return next(); 
+  });
 // }
 
 registerScenes(bot, prisma);
@@ -180,6 +218,16 @@ async function startBot() {
   app.use(express.json());
   app.get('/', (_req: express.Request, res: express.Response) => res.status(200).send('ok'));
   app.get('/health', (_req: express.Request, res: express.Response) => res.status(200).send('ok'));
+  // Metrics
+  try {
+    collectDefaultMetrics();
+    app.get('/metrics', async (_req: express.Request, res: express.Response) => {
+      res.set('Content-Type', register.contentType);
+      res.end(await register.metrics());
+    });
+  } catch (e) {
+    console.error('metrics setup failed', e);
+  }
   app.get('/ready', async (_req: express.Request, res: express.Response) => {
     try {
       await prisma.$queryRaw`SELECT 1`;

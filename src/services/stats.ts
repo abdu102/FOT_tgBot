@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import redis from '../config/redis';
 
 export async function addMatchStat(
   prisma: PrismaClient,
@@ -15,6 +16,15 @@ export async function addMatchStat(
     create: { matchId, userId, goals, assists, won },
   });
   await updatePlayerAggregates(prisma, userId);
+  // Invalidate caches for the session that includes this match
+  try {
+    const match = await prisma.match.findUnique({ where: { id: matchId } as any });
+    const sessionId = (match as any)?.sessionId as string | undefined;
+    if (sessionId) {
+      await redis.del(`sess:top:${sessionId}`);
+      await redis.del(`sess:table:${sessionId}`);
+    }
+  } catch {}
 }
 
 export async function updatePlayerAggregates(prisma: PrismaClient, userId: string) {

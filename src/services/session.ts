@@ -1,8 +1,16 @@
 import type { PrismaClient } from '@prisma/client';
+import redis from '../config/redis';
 
 type Totals = { points: number; gf: number; ga: number };
 
+const cache = redis;
+
 export async function computeSessionTable(prisma: PrismaClient, sessionId: string) {
+  const cacheKey = `sess:table:${sessionId}`;
+  try {
+    const cached = await cache.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch {}
   const matches = await prisma.match.findMany({ where: { sessionId } as any });
   const totals = new Map<string, Totals>();
   const bump = (teamId: string, d: Partial<Totals>) => {
@@ -40,10 +48,16 @@ export async function computeSessionTable(prisma: PrismaClient, sessionId: strin
   }
   // Return table sorted
   const table = await (prisma as any).sessionTeam.findMany({ where: { sessionId }, include: { team: true }, orderBy: [{ points: 'desc' }, { goalsFor: 'desc' }] });
+  try { await cache.setex(cacheKey, 300, JSON.stringify(table)); } catch {}
   return table as Array<{ team: { name: string }, points: number, goalsFor: number, goalsAgainst: number }>
 }
 
 export async function getSessionTopPlayers(prisma: PrismaClient, sessionId: string) {
+  const cacheKey = `sess:top:${sessionId}`;
+  try {
+    const cached = await cache.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch {}
   const matches = await prisma.match.findMany({ where: { sessionId } as any });
   const matchIds = matches.map((m) => m.id);
   if (!matchIds.length) return { topScorers: [], topAssists: [] };
@@ -61,7 +75,9 @@ export async function getSessionTopPlayers(prisma: PrismaClient, sessionId: stri
   }
   const topScorers = Array.from(goalsMap.values()).sort((x, y) => y.goals - x.goals).slice(0, 10);
   const topAssists = Array.from(assistsMap.values()).sort((x, y) => y.assists - x.assists).slice(0, 10);
-  return { topScorers, topAssists };
+  const payload = { topScorers, topAssists };
+  try { await cache.setex(cacheKey, 300, JSON.stringify(payload)); } catch {}
+  return payload;
 }
 
 
