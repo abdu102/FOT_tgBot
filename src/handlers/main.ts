@@ -247,6 +247,14 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
         }
       }
       reg = await (prisma as any).sessionRegistration.create({ data: { sessionId, userId: (ctx.state as any).userId, type, status: 'PENDING' } });
+      // Offer coupon usage if available
+      const availableCoupons = await (prisma as any).coupon.count({ where: { userId: (ctx.state as any).userId, status: 'AVAILABLE' } });
+      if (availableCoupons > 0) {
+        (ctx.session as any).awaitCouponForRegId = reg.id;
+        return ctx.reply(`Sizda ${availableCoupons} ta kupon bor. Ulardan foydalanasizmi?`, {
+          reply_markup: { inline_keyboard: [[{ text: '🎟️ Kupon', callback_data: `sr_coupon_use_1_${reg.id}` }, { text: '💵 To\'lov', callback_data: `sr_coupon_skip_${reg.id}` }]] }
+        } as any);
+      }
     } else {
       const team = await prisma.team.findFirst({ where: { captainId: (ctx.state as any).userId }, include: { members: { include: { user: true } } } });
       if (!team) return ctx.reply('Avval jamoa yarating: /team');
@@ -268,6 +276,22 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
         return ctx.reply(`❌ Jamoada bir xil raqamlar bor. Iltimos, raqamlarni o'zgartiring:\n${lines}`);
       }
       reg = await (prisma as any).sessionRegistration.create({ data: { sessionId, teamId: team.id, type, status: 'PENDING' } });
+      // Offer coupon usage for team: count members with available coupons
+      const memberIds = (team.members as any[]).map((m) => m.userId);
+      const coupons = await (prisma as any).coupon.findMany({ where: { userId: { in: memberIds }, status: 'AVAILABLE' } });
+      const byUser = new Map<string, number>();
+      for (const c of coupons) byUser.set((c as any).userId, (byUser.get((c as any).userId) || 0) + 1);
+      const totalCoupons = coupons.length;
+      if (totalCoupons > 0) {
+        (ctx.session as any).awaitCouponForRegId = reg.id;
+        (ctx.session as any).awaitCouponTeamId = team.id;
+        return ctx.reply(`Jamoa a'zolarida jami ${totalCoupons} ta kupon bor. Nechtasidan foydalanasiz?`, {
+          reply_markup: { inline_keyboard: [
+            [{ text: '0', callback_data: `sr_coupon_team_use_0_${reg.id}` }, { text: '1', callback_data: `sr_coupon_team_use_1_${reg.id}` }, { text: '2', callback_data: `sr_coupon_team_use_2_${reg.id}` }, { text: '3', callback_data: `sr_coupon_team_use_3_${reg.id}` }],
+            [{ text: 'Barchasi', callback_data: `sr_coupon_team_use_all_${reg.id}` }],
+          ] }
+        } as any);
+      }
     }
     const count = type === 'TEAM' && reg?.teamId ? (await prisma.teamMember.count({ where: { teamId: reg.teamId } })) : 1;
     const amount = 40000 * count;
@@ -292,6 +316,60 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     await (prisma as any).payment.create({ data: { sessionRegistrationId: reg.id, amount, method: process.env.PAYMENT_METHOD || 'MANUAL', status: 'PENDING', userId } });
     await ctx.reply(`To‘lov summasi: ${amount} UZS\n${require('../services/payments').paymentInstructions()}`);
     await ctx.reply('Iltimos, to‘lov chekini surat qilib yuboring');
+  });
+
+  // Individual coupon decision
+  bot.action(/sr_coupon_use_1_(.*)/, async (ctx) => {
+    const regId = (ctx.match as any)[1] as string;
+    const userId = (ctx.state as any).userId as string;
+    await ctx.answerCbQuery();
+    const c = await (prisma as any).coupon.findFirst({ where: { userId, status: 'AVAILABLE' }, orderBy: { issuedAt: 'asc' } });
+    const reg = await (prisma as any).sessionRegistration.findUnique({ where: { id: regId } });
+    if (!c || !reg) return;
+    await (prisma as any).coupon.update({ where: { id: c.id }, data: { status: 'USED', usedAt: new Date(), sessionRegistrationId: regId } });
+    // Create zero-amount payment
+    await (prisma as any).payment.create({ data: { sessionRegistrationId: regId, amount: 0, method: 'COUPON', status: 'PENDING', userId } });
+    (ctx.session as any).awaitReceiptForRegId = undefined;
+    await ctx.reply('🎟️ Kupon ishlatildi. So‘rov yuborildi, admin tasdiqlaydi.');
+  });
+  bot.action(/sr_coupon_skip_(.*)/, async (ctx) => {
+    const regId = (ctx.match as any)[1] as string;
+    await ctx.answerCbQuery();
+    const userId = (ctx.state as any).userId as string;
+    const pay = await (prisma as any).payment.create({ data: { sessionRegistrationId: regId, amount: 40000, method: process.env.PAYMENT_METHOD || 'MANUAL', status: 'PENDING', userId } });
+    (ctx.session as any).awaitReceiptForRegId = regId;
+    await ctx.reply(`To‘lov summasi: 40000 UZS\n${require('../services/payments').paymentInstructions()}`);
+    await ctx.reply('Iltimos, to‘lov chekini surat qilib yuboring');
+  });
+
+  // Team coupon selection (0/1/2/3/all simplified UI)
+  bot.action(/sr_coupon_team_use_(all|\d+)_(.*)/, async (ctx) => {
+    const pick = (ctx.match as any)[1] as string;
+    const regId = (ctx.match as any)[2] as string;
+    await ctx.answerCbQuery();
+    const reg = await (prisma as any).sessionRegistration.findUnique({ where: { id: regId }, include: { team: { include: { members: true } } } });
+    if (!reg?.team) return;
+    const memberIds = (reg.team.members as any[]).map((m) => m.userId);
+    const available = await (prisma as any).coupon.findMany({ where: { userId: { in: memberIds }, status: 'AVAILABLE' }, orderBy: { issuedAt: 'asc' } });
+    const maxCoupons = available.length;
+    let useCount = 0;
+    if (pick === 'all') useCount = maxCoupons; else useCount = Math.min(parseInt(pick, 10) || 0, maxCoupons);
+    // Mark coupons used
+    for (let i = 0; i < useCount; i++) {
+      const c = available[i];
+      await (prisma as any).coupon.update({ where: { id: c.id }, data: { status: 'USED', usedAt: new Date(), sessionRegistrationId: regId } });
+    }
+    const participants = reg.team.members.length;
+    const usedValue = Math.min(useCount, participants) * 40000; // each coupon covers 1 participant
+    const amount = Math.max(0, participants * 40000 - usedValue);
+    await (prisma as any).payment.create({ data: { sessionRegistrationId: regId, amount, method: useCount > 0 ? 'COUPON+MANUAL' : (process.env.PAYMENT_METHOD || 'MANUAL'), status: 'PENDING', teamId: reg.teamId, userId: (ctx.state as any).userId } });
+    (ctx.session as any).awaitReceiptForRegId = regId;
+    if (amount === 0) {
+      await ctx.reply('🎟️ Kuponlar bilan to‘lov yopildi. So‘rov yuborildi, admin tasdiqlaydi.');
+    } else {
+      await ctx.reply(`To‘lov summasi: ${amount} UZS\n${require('../services/payments').paymentInstructions()}`);
+      await ctx.reply('Iltimos, to‘lov chekini surat qilib yuboring');
+    }
   });
 
   // Photo upload for payment receipt

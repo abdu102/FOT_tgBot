@@ -449,11 +449,16 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
     if (!(ctx.state as any).isAdmin) return;
     const sessionId = (ctx.match as any)[1];
     const userId = (ctx.match as any)[2];
-    
-    await (prisma as any).session.update({ 
-      where: { id: sessionId }, 
-      data: { manOfTheSessionUserId: userId } 
-    });
+    // Issue coupon if MVP changed or not set before
+    const prev = await (prisma as any).session.findUnique({ where: { id: sessionId }, select: { manOfTheSessionUserId: true } });
+    await (prisma as any).session.update({ where: { id: sessionId }, data: { manOfTheSessionUserId: userId } });
+    try {
+      if (!prev?.manOfTheSessionUserId || prev.manOfTheSessionUserId !== userId) {
+        await (prisma as any).coupon.create({ data: { userId, status: 'AVAILABLE' as any } });
+      }
+    } catch (e) {
+      console.error('Coupon issue failed', e);
+    }
     
     const user = await prisma.user.findUnique({ where: { id: userId } });
     const userName = user ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Unknown';
