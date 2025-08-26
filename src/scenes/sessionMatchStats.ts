@@ -1,6 +1,7 @@
 import { Scenes } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { addMatchStat } from '../services/stats';
+import { editOrReply, safeAnswerCb } from '../utils/telegram';
 
 export function matchStatsScene(prisma: PrismaClient) {
   const scene = new Scenes.WizardScene<Scenes.WizardContext>(
@@ -60,9 +61,8 @@ export function matchStatsScene(prisma: PrismaClient) {
       
       teamButtons.push([{ text: '⬅️ Orqaga', callback_data: 'back_to_session' }]);
       
-      await ctx.reply('Jamoa tanlang:', { 
-        reply_markup: { inline_keyboard: teamButtons } 
-      } as any);
+      console.log('DEBUG: Rendering teams list in stats scene');
+      await editOrReply(ctx as any, 'Jamoa tanlang:', { reply_markup: { inline_keyboard: teamButtons } } as any);
       
       (ctx.wizard.state as any).sessionId = sessionId;
       return ctx.wizard.next();
@@ -76,7 +76,8 @@ export function matchStatsScene(prisma: PrismaClient) {
   // Handler for team selection
   (scene as any).action(/stats_team_(.*)/, async (ctx: any) => {
     const teamId = (ctx.match as any)[1];
-    await ctx.answerCbQuery();
+    console.log('DEBUG: stats_team clicked', teamId);
+    await safeAnswerCb(ctx);
     
     // Get team members
     const team = await prisma.team.findUnique({
@@ -89,7 +90,7 @@ export function matchStatsScene(prisma: PrismaClient) {
     });
     
     if (!team || !team.members.length) {
-      await ctx.reply('Bu jamoada o\'yinchilar yo\'q');
+      await editOrReply(ctx, 'Bu jamoada o\'yinchilar yo\'q');
       return;
     }
     
@@ -100,9 +101,8 @@ export function matchStatsScene(prisma: PrismaClient) {
     
     playerButtons.push([{ text: '⬅️ Jamoalar', callback_data: 'back_to_teams' }]);
     
-    await ctx.editMessageText(`${team.name} - O'yinchi tanlang:`, { 
-      reply_markup: { inline_keyboard: playerButtons } 
-    } as any);
+    console.log('DEBUG: Rendering players list for team', teamId);
+    await editOrReply(ctx as any, `${team.name} - O'yinchi tanlang:`, { reply_markup: { inline_keyboard: playerButtons } } as any);
     
     (ctx.wizard.state as any).selectedTeamId = teamId;
     (ctx.wizard.state as any).selectedTeamName = team.name;
@@ -111,11 +111,12 @@ export function matchStatsScene(prisma: PrismaClient) {
   // Handler for player selection
   (scene as any).action(/stats_player_(.*)/, async (ctx: any) => {
     const userId = (ctx.match as any)[1];
-    await ctx.answerCbQuery();
+    console.log('DEBUG: stats_player clicked', userId);
+    await safeAnswerCb(ctx);
     
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      await ctx.reply('O\'yinchi topilmadi');
+      await editOrReply(ctx, 'O\'yinchi topilmadi');
       return;
     }
     
@@ -127,9 +128,8 @@ export function matchStatsScene(prisma: PrismaClient) {
       [{ text: '⬅️ O\'yinchilar', callback_data: `back_to_players_${(ctx.wizard.state as any).selectedTeamId}` }]
     ];
     
-    await ctx.editMessageText(`${user.firstName} ${user.lastName || ''}`.trim() + ' - Harakat tanlang:', { 
-      reply_markup: { inline_keyboard: actionButtons } 
-    } as any);
+    console.log('DEBUG: Rendering action buttons for player', userId);
+    await editOrReply(ctx as any, `${user.firstName} ${user.lastName || ''}`.trim() + ' - Harakat tanlang:', { reply_markup: { inline_keyboard: actionButtons } } as any);
     
     (ctx.wizard.state as any).selectedUserId = userId;
     (ctx.wizard.state as any).selectedUserName = `${user.firstName} ${user.lastName || ''}`.trim();
@@ -138,7 +138,8 @@ export function matchStatsScene(prisma: PrismaClient) {
   // Handler for adding goal
   (scene as any).action(/stats_goal_(.*)/, async (ctx: any) => {
     const userId = (ctx.match as any)[1];
-    await ctx.answerCbQuery();
+    console.log('DEBUG: stats_goal clicked', userId);
+    await safeAnswerCb(ctx);
     
     // Find an active match to add stats to (simplified - you may want to let admin select match)
     const sessionId = (ctx.wizard.state as any).sessionId;
@@ -165,17 +166,18 @@ export function matchStatsScene(prisma: PrismaClient) {
       });
       
       const userName = (ctx.wizard.state as any).selectedUserName;
-      await ctx.reply(`✅ ${userName}ga gol qo\'shildi!`);
+      await editOrReply(ctx, `✅ ${userName}ga gol qo\'shildi!`);
     } catch (error) {
       console.error('Error adding goal:', error);
-      await ctx.reply('❌ Gol qo\'shishda xatolik');
+      await editOrReply(ctx, '❌ Gol qo\'shishda xatolik');
     }
   });
 
   // Handler for adding assist
   (scene as any).action(/stats_assist_(.*)/, async (ctx: any) => {
     const userId = (ctx.match as any)[1];
-    await ctx.answerCbQuery();
+    console.log('DEBUG: stats_assist clicked', userId);
+    await safeAnswerCb(ctx);
     
     // Find an active match to add stats to
     const sessionId = (ctx.wizard.state as any).sessionId;
@@ -185,7 +187,7 @@ export function matchStatsScene(prisma: PrismaClient) {
     });
     
     if (!matches.length) {
-      await ctx.reply('Bu sessiyada matchlar yo\'q');
+      await editOrReply(ctx, 'Bu sessiyada matchlar yo\'q');
       return;
     }
     
@@ -201,16 +203,17 @@ export function matchStatsScene(prisma: PrismaClient) {
       });
       
       const userName = (ctx.wizard.state as any).selectedUserName;
-      await ctx.reply(`✅ ${userName}ga assist qo\'shildi!`);
+      await editOrReply(ctx, `✅ ${userName}ga assist qo\'shildi!`);
     } catch (error) {
       console.error('Error adding assist:', error);
-      await ctx.reply('❌ Assist qo\'shishda xatolik');
+      await editOrReply(ctx, '❌ Assist qo\'shishda xatolik');
     }
   });
 
   // Navigation handlers
   (scene as any).action('back_to_teams', async (ctx: any) => {
-    await ctx.answerCbQuery();
+    console.log('DEBUG: back_to_teams clicked');
+    await safeAnswerCb(ctx);
     // Go back to step 1 - show teams
     const sessionId = (ctx.wizard.state as any).sessionId;
     const sessionTeams = await (prisma as any).sessionTeam.findMany({
@@ -233,14 +236,13 @@ export function matchStatsScene(prisma: PrismaClient) {
     
     teamButtons.push([{ text: '⬅️ Orqaga', callback_data: 'back_to_session' }]);
     
-    await ctx.editMessageText('Jamoa tanlang:', { 
-      reply_markup: { inline_keyboard: teamButtons } 
-    } as any);
+    await editOrReply(ctx as any, 'Jamoa tanlang:', { reply_markup: { inline_keyboard: teamButtons } } as any);
   });
 
   (scene as any).action(/back_to_players_(.*)/, async (ctx: any) => {
     const teamId = (ctx.match as any)[1];
-    await ctx.answerCbQuery();
+    console.log('DEBUG: back_to_players clicked', teamId);
+    await safeAnswerCb(ctx);
     
     const team = await prisma.team.findUnique({
       where: { id: teamId },
@@ -260,13 +262,12 @@ export function matchStatsScene(prisma: PrismaClient) {
     
     playerButtons.push([{ text: '⬅️ Jamoalar', callback_data: 'back_to_teams' }]);
     
-    await ctx.editMessageText(`${team.name} - O'yinchi tanlang:`, { 
-      reply_markup: { inline_keyboard: playerButtons } 
-    } as any);
+    await editOrReply(ctx as any, `${team.name} - O'yinchi tanlang:`, { reply_markup: { inline_keyboard: playerButtons } } as any);
   });
 
   (scene as any).action('back_to_session', async (ctx: any) => {
-    await ctx.answerCbQuery();
+    console.log('DEBUG: back_to_session clicked');
+    await safeAnswerCb(ctx);
     await ctx.scene.leave();
     // Simple message instead of trying to import sendAdminPanel
     await ctx.reply('Adminlar paneliga qaytish uchun /start ni bosing.');
