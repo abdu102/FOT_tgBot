@@ -20,9 +20,9 @@ export async function addMatchStat(
   try {
     const match = await prisma.match.findUnique({ where: { id: matchId } as any });
     const sessionId = (match as any)?.sessionId as string | undefined;
-    if (sessionId) {
-      await redis.del(`sess:top:${sessionId}`);
-      await redis.del(`sess:table:${sessionId}`);
+    if (sessionId && (redis as any)) {
+      await (redis as any).del(`sess:top:${sessionId}`).catch(() => {});
+      await (redis as any).del(`sess:table:${sessionId}`).catch(() => {});
     }
   } catch {}
 }

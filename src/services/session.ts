@@ -8,8 +8,10 @@ const cache = redis;
 export async function computeSessionTable(prisma: PrismaClient, sessionId: string) {
   const cacheKey = `sess:table:${sessionId}`;
   try {
-    const cached = await cache.get(cacheKey);
-    if (cached) return JSON.parse(cached);
+    if (cache) {
+      const cached = await cache.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    }
   } catch {}
   const matches = await prisma.match.findMany({ where: { sessionId } as any });
   const totals = new Map<string, Totals>();
@@ -48,15 +50,17 @@ export async function computeSessionTable(prisma: PrismaClient, sessionId: strin
   }
   // Return table sorted
   const table = await (prisma as any).sessionTeam.findMany({ where: { sessionId }, include: { team: true }, orderBy: [{ points: 'desc' }, { goalsFor: 'desc' }] });
-  try { await cache.setex(cacheKey, 300, JSON.stringify(table)); } catch {}
+  try { if (cache) await cache.setex(cacheKey, 300, JSON.stringify(table)); } catch {}
   return table as Array<{ team: { name: string }, points: number, goalsFor: number, goalsAgainst: number }>
 }
 
 export async function getSessionTopPlayers(prisma: PrismaClient, sessionId: string) {
   const cacheKey = `sess:top:${sessionId}`;
   try {
-    const cached = await cache.get(cacheKey);
-    if (cached) return JSON.parse(cached);
+    if (cache) {
+      const cached = await cache.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    }
   } catch {}
   const matches = await prisma.match.findMany({ where: { sessionId } as any });
   const matchIds = matches.map((m) => m.id);
@@ -76,7 +80,7 @@ export async function getSessionTopPlayers(prisma: PrismaClient, sessionId: stri
   const topScorers = Array.from(goalsMap.values()).sort((x, y) => y.goals - x.goals).slice(0, 10);
   const topAssists = Array.from(assistsMap.values()).sort((x, y) => y.assists - x.assists).slice(0, 10);
   const payload = { topScorers, topAssists };
-  try { await cache.setex(cacheKey, 300, JSON.stringify(payload)); } catch {}
+  try { if (cache) await cache.setex(cacheKey, 300, JSON.stringify(payload)); } catch {}
   return payload;
 }
 
@@ -90,8 +94,10 @@ export async function listAvailableSessions(
 ) {
   const key = `sess:list:${startInclusive.toISOString().slice(0,10)}:${endInclusive.toISOString().slice(0,10)}`;
   try {
-    const cached = await cache.get(key);
-    if (cached) return JSON.parse(cached);
+    if (cache) {
+      const cached = await cache.get(key);
+      if (cached) return JSON.parse(cached);
+    }
   } catch {}
   const sessions = await (prisma as any).session.findMany({
     where: {
@@ -120,7 +126,7 @@ export async function listAvailableSessions(
   };
 
   const result = sessions.filter(notFull);
-  try { await cache.setex(key, 60, JSON.stringify(result)); } catch {}
+  try { if (cache) await cache.setex(key, 60, JSON.stringify(result)); } catch {}
   return result;
 }
 
