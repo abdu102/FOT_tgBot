@@ -189,16 +189,47 @@ export function sessionsScene(prisma: PrismaClient) {
     // Handle admin navigation while in sessions scene
     const text = (ctx.message as any)?.text?.trim();
     if (text) {
-      // If admin clicks other admin buttons, leave the scene and let global handlers take over
+      // If admin clicks other admin buttons, leave the scene and manually trigger the appropriate handler
       if (text.match(/➕ Sessiya yaratish|➕ Создать сессию/)) {
-        console.log('DEBUG: Admin clicked create session while in sessions scene, leaving and delegating');
+        console.log('DEBUG: Admin clicked create session while in sessions scene, leaving and entering create mode');
         try { await ctx.scene.leave(); } catch {}
-        return next(); // Let the global handler handle this
+        // Directly enter the sessions scene in create mode
+        await ctx.scene.enter('admin:sessions', { createOnly: true });
+        return;
       }
       if (text.match(/✅ Tasdiqlash|✅ Подтвердить/)) {
-        console.log('DEBUG: Admin clicked approvals while in sessions scene, leaving and delegating');
+        console.log('DEBUG: Admin clicked approvals while in sessions scene, leaving and showing approvals');
         try { await ctx.scene.leave(); } catch {}
-        return next(); // Let the global handler handle this
+        // Import and call the admin handler directly
+        const { registerAdminHandlers } = await import('../handlers/admin');
+        const sendApprovalSessionsList = async (ctx: any) => {
+          const sessions = await (prisma as any).session.findMany({
+            where: { registrations: { some: { status: 'PENDING' } } },
+            include: { registrations: { where: { status: 'PENDING' }, select: { id: true } } },
+            orderBy: { startAt: 'asc' },
+            take: 15,
+          });
+          if (!sessions.length) {
+            await ctx.reply('Pending sessiya yo\'q', { 
+              reply_markup: { 
+                inline_keyboard: [
+                  [{ text: '🧪 Seed demo pending', callback_data: 'admin_seed_pending' }], 
+                  [{ text: '⬅️ Back', callback_data: 'open_admin_panel' }]
+                ] 
+              } 
+            });
+            return;
+          }
+          const rows = sessions.map((s: any) => [{ 
+            text: `📅 ${s.startAt.toISOString().slice(0,10)} ${s.startAt.toISOString().slice(11,16)} (${s.registrations.length})`, 
+            callback_data: `sess_approve_${s.id}` 
+          }]);
+          await ctx.reply('Sessiyalar (tasdiqlash uchun):', { 
+            reply_markup: { inline_keyboard: rows } 
+          });
+        };
+        await sendApprovalSessionsList(ctx);
+        return;
       }
       if (text.match(/🧾 Ro'yxatlar|🧾 Списки/)) {
         console.log('DEBUG: Admin clicked lists while in sessions scene, leaving and delegating');
