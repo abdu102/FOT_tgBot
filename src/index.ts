@@ -8,7 +8,6 @@ import express from 'express';
 import { spawn } from 'child_process';
 import { buildMainKeyboard, buildAuthKeyboard, buildWelcomeKeyboard } from './keyboards/main';
 import redis from './config/redis';
-import RedisSession from 'telegraf-session-redis';
 import { collectDefaultMetrics, register } from 'prom-client';
 import { messageCounter } from './utils/telegram';
 import { registerScenes } from './scenes';
@@ -46,14 +45,35 @@ const i18n = new I18n({
 
 const bot = new Telegraf<Scenes.WizardContext>(BOT_TOKEN);
 
-// Redis-backed session storage (scales across instances)
-try {
-  const redisSession = new (RedisSession as any)({ store: redis, ttl: 60 * 60 });
-  bot.use(redisSession);
-} catch (e) {
-  console.error('Failed to initialize Redis session store; falling back to in-memory session', e);
-  bot.use(session());
-}
+// Redis-backed session storage (scales across instances) using Telegraf's built-in session with custom store
+const SESSION_TTL = parseInt(process.env.SESSION_TTL || '3600', 10);
+const redisStore = {
+  get: async (key: string) => {
+    try {
+      const data = await redis.get(`tgsess:${key}`);
+      return data ? JSON.parse(data) : undefined;
+    } catch {
+      return undefined;
+    }
+  },
+  set: async (key: string, value: any) => {
+    try {
+      await redis.set(`tgsess:${key}`, JSON.stringify(value), 'EX', SESSION_TTL);
+    } catch {}
+  },
+  delete: async (key: string) => {
+    try { await redis.del(`tgsess:${key}`); } catch {}
+  },
+};
+bot.use(session({
+  store: redisStore as any,
+  getSessionKey: (ctx: any) => {
+    const fromId = ctx.from?.id;
+    const chatId = ctx.chat?.id;
+    if (!fromId || !chatId) return undefined;
+    return `${fromId}:${chatId}`;
+  },
+} as any));
 // @ts-ignore - types augmented in src/types
 bot.use(i18n.middleware());
 // Simple per-user rate limiting (30 actions/min)
