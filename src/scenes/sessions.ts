@@ -28,6 +28,22 @@ async function showCalendar(ctx: any) {
   });
 }
 
+// Helper: render upcoming sessions (2 weeks) list for admins
+async function renderUpcomingSessionsList(ctx: any, prisma: PrismaClient) {
+  const now = new Date();
+  const end = new Date(now);
+  end.setDate(end.getDate() + 14);
+  console.log(`DEBUG: renderUpcomingSessionsList ${now.toISOString()}..${end.toISOString()}`);
+  const pageSize = 10;
+  const total = await (prisma as any).session.count({ where: { startAt: { gte: now, lte: end } } });
+  const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: now, lte: end } }, orderBy: { startAt: 'asc' }, take: pageSize, skip: 0 });
+  const makeRows = (items: any[]) => items.map((s: any) => [{ text: `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${uzTypeLabel(s.type)})`, callback_data: `sess_open_${s.id}` }]);
+  const nav = total > pageSize ? [{ text: '»', callback_data: `sess_list_1` }] : [];
+  const rows = makeRows(sessions);
+  if (nav.length) rows.push(nav);
+  await editOrReply(ctx, sessions.length ? 'Yaqin 2 haftalik sessiyalar:' : 'Yaqin 2 haftada sessiya yo‘q', { reply_markup: { inline_keyboard: rows } } as any);
+}
+
 export function sessionsScene(prisma: PrismaClient) {
   const scene = new Scenes.WizardScene<Scenes.WizardContext>(
     'admin:sessions',
@@ -58,30 +74,8 @@ export function sessionsScene(prisma: PrismaClient) {
       sess.awaitingPlace = false;
       sess.sessCreateAskDay = false;
       
-      // Show upcoming sessions (2 weeks) with pagination (10 per page)
-      const now = new Date();
-      const end = new Date(now);
-      end.setDate(end.getDate() + 14);
-      console.log(`DEBUG: Admin sessions scene - Looking for sessions from ${now.toISOString()} to ${end.toISOString()}`);
-      
-      const pageSize = 10;
-      const total = await (prisma as any).session.count({ where: { startAt: { gte: now, lte: end } } });
-      console.log(`DEBUG: Admin sessions scene - Found ${total} total sessions in 2-week range`);
-      
-      // Also check for any sessions at all
-      const allSessions = await (prisma as any).session.findMany({ orderBy: { startAt: 'asc' }, take: 10 });
-      console.log(`DEBUG: Admin sessions scene - Database has ${allSessions.length} sessions total`);
-      allSessions.forEach((s: any, i: number) => {
-        console.log(`  ${i}: ${s.id} - ${s.startAt} - ${s.status}`);
-      });
-      
-      const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: now, lte: end } }, orderBy: { startAt: 'asc' }, take: pageSize, skip: 0 });
-      console.log(`DEBUG: Admin sessions scene - Retrieved ${sessions.length} sessions for page 0`);
-      const makeRows = (items: any[]) => items.map((s: any) => [{ text: `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${uzTypeLabel(s.type)})`, callback_data: `sess_open_${s.id}` }]);
-      const nav = total > pageSize ? [{ text: '»', callback_data: `sess_list_1` }] : [];
-      const rows = makeRows(sessions);
-      if (nav.length) rows.push(nav);
-      await editOrReply(ctx, sessions.length ? 'Yaqin 2 haftalik sessiyalar:' : 'Yaqin 2 haftada sessiya yo‘q', { reply_markup: { inline_keyboard: rows } } as any);
+      // Show upcoming sessions list
+      await renderUpcomingSessionsList(ctx, prisma);
       return;
     },
   );
@@ -189,6 +183,12 @@ export function sessionsScene(prisma: PrismaClient) {
     // Handle admin navigation while in sessions scene
     const text = (ctx.message as any)?.text?.trim();
     if (text) {
+      // If admin clicks sessions, re-render list in-place
+      if (text.match(/🗓️ Sessiyalar|🗓️ Сессии|Sessiyalar|Сессии/)) {
+        console.log('DEBUG: Admin clicked sessions while in sessions scene, re-rendering list');
+        await renderUpcomingSessionsList(ctx, prisma);
+        return;
+      }
       // If admin clicks other admin buttons, leave the scene and manually trigger the appropriate handler
       if (text.match(/➕ Sessiya yaratish|➕ Создать сессию/)) {
         console.log('DEBUG: Admin clicked create session while in sessions scene, switching to create mode');
