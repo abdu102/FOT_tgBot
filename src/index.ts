@@ -210,6 +210,8 @@ async function repairDbEnums() {
     await prisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "public"."RegistrationType" AS ENUM ('INDIVIDUAL','TEAM'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
     await prisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "public"."RegistrationStatus" AS ENUM ('PENDING','APPROVED','REJECTED','CANCELLED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
     await prisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "public"."PaymentStatus" AS ENUM ('PENDING','CONFIRMED','FAILED','REFUNDED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+    // New enum used by coupons
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "public"."CouponStatus" AS ENUM ('AVAILABLE','USED','EXPIRED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
     // Registration.type
     await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Registration" ALTER COLUMN "type" DROP DEFAULT; EXCEPTION WHEN undefined_column THEN NULL; END $$;`);
     await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Registration" ALTER COLUMN "type" TYPE "public"."RegistrationType" USING (CASE WHEN "type" IS NULL THEN 'INDIVIDUAL'::"public"."RegistrationType" ELSE "type"::"public"."RegistrationType" END); EXCEPTION WHEN others THEN NULL; END $$;`);
@@ -228,6 +230,31 @@ async function repairDbEnums() {
     await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Payment" ALTER COLUMN "status" DROP DEFAULT; EXCEPTION WHEN undefined_column THEN NULL; END $$;`);
     await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Payment" ALTER COLUMN "status" TYPE "public"."PaymentStatus" USING (CASE WHEN "status" IS NULL THEN 'PENDING'::"public"."PaymentStatus" ELSE "status"::"public"."PaymentStatus" END); EXCEPTION WHEN others THEN NULL; END $$;`);
     await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "Payment" ALTER COLUMN "status" SET DEFAULT 'PENDING'::"public"."PaymentStatus"; EXCEPTION WHEN others THEN NULL; END $$;`);
+    // Columns that newer migrations add; make startup idempotent by adding if missing
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "preferredNumber" INTEGER NULL; EXCEPTION WHEN others THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "TeamMember" ADD COLUMN IF NOT EXISTS "number" INTEGER NULL; EXCEPTION WHEN others THEN NULL; END $$;`);
+    // Coupon table (minimal schema to satisfy queries); use public enums created above
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'Coupon') THEN
+          CREATE TABLE "public"."Coupon" (
+            "id" TEXT PRIMARY KEY,
+            "userId" TEXT NOT NULL,
+            "status" "public"."CouponStatus" NOT NULL DEFAULT 'AVAILABLE',
+            "sessionRegistrationId" TEXT NULL,
+            "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+            "usedAt" TIMESTAMP NULL
+          );
+        END IF;
+      END $$;
+    `);
+    // Lightweight FKs (best-effort)
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN
+      ALTER TABLE "Coupon" ADD CONSTRAINT IF NOT EXISTS "Coupon_user_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN others THEN NULL; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN
+      ALTER TABLE "Coupon" ADD CONSTRAINT IF NOT EXISTS "Coupon_sr_fkey" FOREIGN KEY ("sessionRegistrationId") REFERENCES "SessionRegistration"("id") ON DELETE SET NULL;
+    EXCEPTION WHEN others THEN NULL; END $$;`);
     console.log('DB enum repair completed');
   } catch (e) {
     console.error('DB enum repair failed', e);
@@ -268,8 +295,13 @@ async function startBot() {
   // Run migrations in background so DB is up-to-date without blocking healthcheck
   if (process.env.AUTO_MIGRATE !== '0') {
     try {
-      // First, ensure enums/columns exist to unblock Prisma
+      // First, ensure enums/columns/tables exist to unblock Prisma
       repairDbEnums().catch(() => {});
+      // Resolve previously failed migration (P3009) if present
+      try {
+        const resolve = spawn('npx', ['prisma', 'migrate', 'resolve', '--applied', '0013_enums_registration_payment'], { stdio: 'inherit' });
+        resolve.on('exit', (code) => console.log('migrate resolve 0013 exit', code));
+      } catch {}
       const child = spawn('npx', ['prisma', 'migrate', 'deploy'], { stdio: 'inherit' });
       child.on('exit', (code) => console.log('migrate deploy finished with code', code));
     } catch (e) {
