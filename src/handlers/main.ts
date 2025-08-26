@@ -90,10 +90,16 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
     end.setHours(23, 59, 59, 999);
+    
     const type = (ctx.session as any).srType === 'TEAM' ? 'TEAM' : 'INDIVIDUAL';
+    console.log(`DEBUG: showWeeklySessions called for type ${type}, range ${start.toISOString()} to ${end.toISOString()}`);
+    
     const sessions = type === 'TEAM'
       ? await listSessionsForTeamSignup(prisma as any, start, end)
       : await listAvailableSessions(prisma as any, start, end);
+      
+    console.log(`DEBUG: showWeeklySessions got ${sessions.length} sessions for type ${type}`);
+    
     if (!sessions.length) {
       await ctx.reply('Bu hafta uchun mos sessiya topilmadi.');
       return;

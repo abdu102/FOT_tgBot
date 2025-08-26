@@ -93,12 +93,19 @@ export async function listAvailableSessions(
   endInclusive: Date
 ) {
   const key = `sess:list:${startInclusive.toISOString().slice(0,10)}:${endInclusive.toISOString().slice(0,10)}`;
-  try {
-    if (cache) {
-      const cached = await cache.get(key);
-      if (cached) return JSON.parse(cached);
-    }
-  } catch {}
+  console.log(`DEBUG: listAvailableSessions called with range ${startInclusive.toISOString()} to ${endInclusive.toISOString()}`);
+  
+  // Temporarily disable cache for debugging
+  // try {
+  //   if (cache) {
+  //     const cached = await cache.get(key);
+  //     if (cached) {
+  //       console.log('DEBUG: listAvailableSessions returning cached result');
+  //       return JSON.parse(cached);
+  //     }
+  //   }
+  // } catch {}
+  
   const sessions = await (prisma as any).session.findMany({
     where: {
       startAt: { gte: startInclusive, lte: endInclusive },
@@ -117,6 +124,11 @@ export async function listAvailableSessions(
     take: 200,
   });
 
+  console.log(`DEBUG: listAvailableSessions found ${sessions.length} PLANNED sessions in range`);
+  sessions.forEach((s: any, i: number) => {
+    console.log(`DEBUG: Session ${i}: ${s.id} - ${s.startAt} - ${s.status} - teams: ${s.teams?.length || 0}`);
+  });
+
   const notFull = (s: any) => {
     const maxTeams: number = typeof s.maxTeams === 'number' ? s.maxTeams : 4;
     const sessionTeams: any[] = Array.isArray(s.teams) ? s.teams : [];
@@ -126,6 +138,8 @@ export async function listAvailableSessions(
   };
 
   const result = sessions.filter(notFull);
+  console.log(`DEBUG: listAvailableSessions filtered to ${result.length} not-full sessions`);
+  
   try { if (cache) await cache.setex(key, 60, JSON.stringify(result)); } catch {}
   return result;
 }
@@ -137,12 +151,19 @@ export async function listSessionsForTeamSignup(
   endInclusive: Date
 ) {
   const key = `sess:listTeam:${startInclusive.toISOString().slice(0,10)}:${endInclusive.toISOString().slice(0,10)}`;
-  try {
-    if (cache) {
-      const cached = await cache.get(key);
-      if (cached) return JSON.parse(cached);
-    }
-  } catch {}
+  console.log(`DEBUG: listSessionsForTeamSignup called with range ${startInclusive.toISOString()} to ${endInclusive.toISOString()}`);
+  
+  // Temporarily disable cache for debugging
+  // try {
+  //   if (cache) {
+  //     const cached = await cache.get(key);
+  //     if (cached) {
+  //       console.log('DEBUG: listSessionsForTeamSignup returning cached result');
+  //       return JSON.parse(cached);
+  //     }
+  //   }
+  // } catch {}
+  
   const sessions = await (prisma as any).session.findMany({
     where: {
       startAt: { gte: startInclusive, lte: endInclusive },
@@ -155,6 +176,11 @@ export async function listSessionsForTeamSignup(
     take: 200,
   });
 
+  console.log(`DEBUG: listSessionsForTeamSignup found ${sessions.length} PLANNED sessions in range`);
+  sessions.forEach((s: any, i: number) => {
+    console.log(`DEBUG: Session ${i}: ${s.id} - ${s.startAt} - ${s.status} - teams: ${s.teams?.length || 0}`);
+  });
+
   const hasSlotForFullTeam = (s: any) => {
     const maxTeams: number = typeof s.maxTeams === 'number' ? s.maxTeams : 4;
     const sessionTeams: any[] = Array.isArray(s.teams) ? s.teams : [];
@@ -164,6 +190,8 @@ export async function listSessionsForTeamSignup(
   };
 
   const result = sessions.filter(hasSlotForFullTeam);
+  console.log(`DEBUG: listSessionsForTeamSignup filtered to ${result.length} sessions with team slots`);
+  
   try { if (cache) await cache.setex(key, 60, JSON.stringify(result)); } catch {}
   return result;
 }

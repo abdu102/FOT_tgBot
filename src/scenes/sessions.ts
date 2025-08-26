@@ -14,17 +14,23 @@ export function sessionsScene(prisma: PrismaClient) {
         await ctx.reply('Kunni kiriting (YYYY-MM-DD)');
         return;
       }
-      // Show upcoming sessions (2 weeks) with pagination (5 per page)
+      // Show upcoming sessions (2 weeks) with pagination (10 per page)
       const now = new Date();
       const end = new Date(now);
       end.setDate(end.getDate() + 14);
-      const pageSize = 5;
+      console.log(`DEBUG: Admin sessions scene - Looking for sessions from ${now.toISOString()} to ${end.toISOString()}`);
+      
+      const pageSize = 10;
+      const total = await (prisma as any).session.count({ where: { startAt: { gte: now, lte: end } } });
+      console.log(`DEBUG: Admin sessions scene - Found ${total} total sessions in 2-week range`);
+      
       const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: now, lte: end } }, orderBy: { startAt: 'asc' }, take: pageSize, skip: 0 });
+      console.log(`DEBUG: Admin sessions scene - Retrieved ${sessions.length} sessions for page 0`);
       const makeRows = (items: any[]) => items.map((s: any) => [{ text: `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${uzTypeLabel(s.type)})`, callback_data: `sess_open_${s.id}` }]);
-      const nav = [{ text: '»', callback_data: `sess_list_1` }];
+      const nav = total > pageSize ? [{ text: '»', callback_data: `sess_list_1` }] : [];
       const rows = makeRows(sessions);
-      rows.push(nav);
-      await editOrReply(ctx, 'Yaqin 2 haftalik sessiyalar:', { reply_markup: { inline_keyboard: rows } } as any);
+      if (nav.length) rows.push(nav);
+      await editOrReply(ctx, sessions.length ? 'Yaqin 2 haftalik sessiyalar:' : 'Yaqin 2 haftada sessiya yo‘q', { reply_markup: { inline_keyboard: rows } } as any);
       return;
     },
   );
@@ -40,7 +46,7 @@ export function sessionsScene(prisma: PrismaClient) {
     const now = new Date();
     const end = new Date(now);
     end.setDate(end.getDate() + 14);
-    const pageSize = 5;
+    const pageSize = 10;
     const skip = page * pageSize;
     const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: now, lte: end } }, orderBy: { startAt: 'asc' }, take: pageSize, skip });
     const makeRows = (items: any[]) => items.map((s: any) => [{ text: `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${uzTypeLabel(s.type)})`, callback_data: `sess_open_${s.id}` }]);
