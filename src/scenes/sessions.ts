@@ -33,12 +33,31 @@ export function sessionsScene(prisma: PrismaClient) {
     'admin:sessions',
     async (ctx) => {
       if (!(ctx.state as any).isAdmin) { await ctx.reply('Faqat admin'); return; }
+      
+      console.log('DEBUG: Sessions scene entered');
+      console.log('DEBUG: Scene state:', ctx.scene.state);
+      console.log('DEBUG: createOnly flag:', (ctx.scene.state as any)?.createOnly);
+      
       // If entering in create-only mode, start creation flow with calendar
       if ((ctx.scene.state as any)?.createOnly) {
         console.log('DEBUG: Sessions scene entered in createOnly mode, showing calendar');
         await showCalendar(ctx);
         return;
       }
+      
+      console.log('DEBUG: Sessions scene entered in list mode, showing sessions list');
+      
+      // Clear any lingering session creation state
+      const sess: any = ctx.session || {};
+      sess.sessCreateDay = undefined;
+      sess.sessCreateStart = undefined;
+      sess.sessCreateEnd = undefined;
+      sess.stadium = undefined;
+      sess.place = undefined;
+      sess.awaitingStadium = false;
+      sess.awaitingPlace = false;
+      sess.sessCreateAskDay = false;
+      
       // Show upcoming sessions (2 weeks) with pagination (10 per page)
       const now = new Date();
       const end = new Date(now);

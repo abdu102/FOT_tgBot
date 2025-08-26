@@ -111,8 +111,10 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
   // Map text buttons from reply keyboard to actions
   bot.hears([/🗓️ Sessiyalar/, /🗓️ Сессии/], async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
+    console.log('DEBUG: Admin clicked "Sessiyalar" button, entering sessions scene in list mode');
     try { await (ctx.scene as any).leave(); } catch {}
     await ctx.scene.enter('admin:sessions', {});
+    console.log('DEBUG: Entered sessions scene for listing sessions');
   });
   bot.hears([/➕ Sessiya yaratish/, /➕ Создать сессию/], async (ctx) => {
     if (!(ctx.state as any).isAdmin) return;
