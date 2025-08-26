@@ -178,7 +178,7 @@ model SessionRegistration {
   user            User?              @relation(fields: [userId], references: [id])
   team            Team?              @relation(fields: [teamId], references: [id])
   payment         Payment?
-  coupons         Coupon[]
+  coupons         Coupon[]            @relation("SessionRegistrationCoupons")
 }
 
 enum RegistrationType {
@@ -227,7 +227,7 @@ model Coupon {
   sessionRegistrationId  String?
 
   user                   User                 @relation(fields: [userId], references: [id])
-  sessionRegistration    SessionRegistration? @relation(fields: [sessionRegistrationId], references: [id])
+  sessionRegistration    SessionRegistration? @relation("SessionRegistrationCoupons", fields: [sessionRegistrationId], references: [id])
 }
 
 enum CouponStatus {
