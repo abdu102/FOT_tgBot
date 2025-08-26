@@ -21,23 +21,23 @@ export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, pri
     let team = await prisma.team.findFirst({ where: { captainId: userId }, include: { members: { include: { user: true } } } });
     if (!team) {
       const tm = await prisma.teamMember.findFirst({ where: { userId }, include: { team: { include: { members: { include: { user: true } } } } } });
-      if (tm) team = tm.team as any;
+      // Do NOT treat NABOR session-only teams as user's team in the Jamoa section
+      if (tm && !(tm.team?.name || '').startsWith('FOT NABOR')) team = tm.team as any;
     }
     if (!team) {
-      await ctx.reply('Jamoa yo‘q. Yaratamizmi? / Нет команды. Создать?', { reply_markup: { inline_keyboard: [[{ text: '➕ Jamoa yaratish', callback_data: 'team_create_scene' }], [{ text: '⬅️ Menyuga qaytish', callback_data: 'back_menu' }]] } } as any);
+      await ctx.reply('Jamoa yo‘q. Yaratamizmi?', { reply_markup: { inline_keyboard: [[{ text: '➕ Jamoa yaratish', callback_data: 'team_create_scene' }], [{ text: '⬅️ Menyuga qaytish', callback_data: 'back_menu' }]] } } as any);
       return;
     }
     const userId2 = (ctx.state as any).userId as string;
     const isCaptain = team.captainId === userId2;
     const count = team.members.length;
     const list = team.members.map((m: { user: { firstName: string; lastName?: string | null; phone?: string | null; username?: string | null } }, i: number) => `${i + 1}. ${m.user.firstName} ${m.user.lastName ?? ''} ${m.user.phone ?? ''} @${m.user.username ?? ''}`).join('\n');
-    const warn = count < 6 ? '\n⚠️ Kamida 6 o‘yinchi bo‘lishi kerak / Минимум 6 игроков' : '';
+    const warn = count < 6 ? '\n⚠️ Kamida 6 o‘yinchi bo‘lishi kerak' : '';
     const keyboard: any[] = [];
     if (isCaptain) {
       keyboard.push([{ text: '✏️ Nomni tahrirlash', callback_data: `team_edit_name_${team.id}` }]);
       keyboard.push([{ text: '📝 Tavsifni tahrirlash', callback_data: `team_edit_desc_${team.id}` }]);
       keyboard.push([{ text: '🔗 Taklif havolasi', callback_data: `team_invite_${team.id}` }]);
-      keyboard.push([{ text: '➕ A’zo qo‘shish', callback_data: `team_add_more_${team.id}` }]);
       keyboard.push([{ text: '🗑️ A’zoni olib tashlash', callback_data: `team_remove_${team.id}` }]);
       keyboard.push([{ text: '👑 Kapitanni o‘zgartirish', callback_data: `team_promote_${team.id}` }]);
     } else {
@@ -47,7 +47,7 @@ export function registerCaptainHandlers(bot: Telegraf<Scenes.WizardContext>, pri
     await ctx.reply(`👥 ${team.name}\nA’zolar: ${count}${warn}\n${list}`, { reply_markup: { inline_keyboard: keyboard } } as any);
   }
   // Entry point from main menu
-  bot.hears(['👥 Jamoa', '👥 Команда'], showTeam);
+  bot.hears(['👥 Jamoa'], showTeam);
   bot.command('team', showTeam);
 
   bot.command('team', async (ctx) => {

@@ -435,13 +435,13 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     const u = await prisma.user.findUnique({ where: { id: userId }, include: { stats: true } });
     const ps = u?.stats?.[0];
     await ctx.reply(`👤 ${u?.firstName || ''}\n📞 ${u?.phone || '-'}\n⭐️ ${ps?.rating ?? 0} | ⚽ ${ps?.goals ?? 0} | 🅰️ ${ps?.assists ?? 0} | 🏆 ${ps?.wins ?? 0}`);
-    await ctx.reply('⚙️ Sozlamalar / Настройки', {
+    await ctx.reply('⚙️ Sozlamalar', {
       reply_markup: {
         inline_keyboard: [
-          [{ text: '✏️ Ma\'lumotni o\'zgartirish / Изменить данные', callback_data: 'profile_edit' }],
+          [{ text: '✏️ Ma\'lumotni o\'zgartirish', callback_data: 'profile_edit' }],
           [{ text: `🔢 O'yinchi raqami: ${u?.preferredNumber ?? '—'}`, callback_data: 'profile_number' }],
-          [{ text: '🔐 Parolni o\'zgartirish / Сменить пароль', callback_data: 'profile_password' }],
-          [{ text: '🚪 Chiqish / Выйти', callback_data: 'profile_logout' }],
+          [{ text: '🔐 Parolni o\'zgartirish', callback_data: 'profile_password' }],
+          [{ text: '🚪 Chiqish', callback_data: 'profile_logout' }],
         ],
       },
     } as any);
@@ -483,7 +483,24 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     });
   });
 
-  bot.action('profile_number_back', async (ctx) => { try { await ctx.answerCbQuery(); } catch {} });
+  bot.action('profile_number_back', async (ctx) => {
+    try { await ctx.answerCbQuery(); } catch {}
+    // Reopen profile panel
+    const userId = (ctx.state as any).userId as string;
+    const u = await prisma.user.findUnique({ where: { id: userId }, include: { stats: true } });
+    const ps = u?.stats?.[0];
+    await ctx.reply(`👤 ${u?.firstName || ''}\n📞 ${u?.phone || '-'}\n⭐️ ${ps?.rating ?? 0} | ⚽ ${ps?.goals ?? 0} | 🅰️ ${ps?.assists ?? 0} | 🏆 ${ps?.wins ?? 0}`);
+    await ctx.reply('⚙️ Sozlamalar', {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '✏️ Ma\'lumotni o\'zgartirish', callback_data: 'profile_edit' }],
+          [{ text: `🔢 O'yinchi raqami: ${u?.preferredNumber ?? '—'}`, callback_data: 'profile_number' }],
+          [{ text: '🔐 Parolni o\'zgartirish', callback_data: 'profile_password' }],
+          [{ text: '🚪 Chiqish', callback_data: 'profile_logout' }],
+        ],
+      },
+    } as any);
+  });
 
   // Add handler for "Mening sessiyalarim" button 
   bot.hears([/📅 Mening sessiyalarim/, /📅 Мои сессии/], async (ctx) => {
@@ -524,7 +541,7 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
 
   // Change password flow (simple inline asks)
   bot.action('profile_password', async (ctx) => {
-    await ctx.reply('Yangi parol yuboring / Отправьте новый пароль');
+    await ctx.reply('Yangi parol yuboring');
     (ctx.session as any).awaitingPassword = true;
   });
 
@@ -532,13 +549,13 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     if ((ctx.session as any).awaitingPassword) {
       const raw = (ctx.message as any).text.trim();
       if (raw.length < 4) {
-        return ctx.reply('Parol juda qisqa / Пароль слишком короткий');
+        return ctx.reply('Parol juda qisqa');
       }
       const userId = (ctx.state as any).userId as string;
       const hash = await bcrypt.hash(raw, 10);
       await prisma.user.update({ where: { id: userId }, data: { passwordHash: hash } });
       (ctx.session as any).awaitingPassword = false;
-      return ctx.reply('✅ Parol yangilandi / Пароль обновлён');
+      return ctx.reply('✅ Parol yangilandi');
     }
     return next();
   });
