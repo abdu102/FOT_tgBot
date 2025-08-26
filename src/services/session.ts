@@ -106,6 +106,19 @@ export async function listAvailableSessions(
   //   }
   // } catch {}
   
+  // First check all sessions regardless of status for debugging
+  const allSessionsInRange = await (prisma as any).session.findMany({
+    where: {
+      startAt: { gte: startInclusive, lte: endInclusive },
+    },
+    orderBy: { startAt: 'asc' },
+    take: 200,
+  });
+  console.log(`DEBUG: Found ${allSessionsInRange.length} total sessions in range (any status)`);
+  allSessionsInRange.forEach((s: any, i: number) => {
+    console.log(`  ${i}: ${s.id} - ${s.startAt} - ${s.status}`);
+  });
+
   const sessions = await (prisma as any).session.findMany({
     where: {
       startAt: { gte: startInclusive, lte: endInclusive },
@@ -164,6 +177,19 @@ export async function listSessionsForTeamSignup(
   //   }
   // } catch {}
   
+  // First check all sessions regardless of status for debugging  
+  const allSessionsInRange = await (prisma as any).session.findMany({
+    where: {
+      startAt: { gte: startInclusive, lte: endInclusive },
+    },
+    orderBy: { startAt: 'asc' },
+    take: 200,
+  });
+  console.log(`DEBUG: listSessionsForTeamSignup - Found ${allSessionsInRange.length} total sessions in range (any status)`);
+  allSessionsInRange.forEach((s: any, i: number) => {
+    console.log(`  ${i}: ${s.id} - ${s.startAt} - ${s.status}`);
+  });
+
   const sessions = await (prisma as any).session.findMany({
     where: {
       startAt: { gte: startInclusive, lte: endInclusive },

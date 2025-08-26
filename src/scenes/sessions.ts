@@ -24,6 +24,13 @@ export function sessionsScene(prisma: PrismaClient) {
       const total = await (prisma as any).session.count({ where: { startAt: { gte: now, lte: end } } });
       console.log(`DEBUG: Admin sessions scene - Found ${total} total sessions in 2-week range`);
       
+      // Also check for any sessions at all
+      const allSessions = await (prisma as any).session.findMany({ orderBy: { startAt: 'asc' }, take: 10 });
+      console.log(`DEBUG: Admin sessions scene - Database has ${allSessions.length} sessions total`);
+      allSessions.forEach((s: any, i: number) => {
+        console.log(`  ${i}: ${s.id} - ${s.startAt} - ${s.status}`);
+      });
+      
       const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: now, lte: end } }, orderBy: { startAt: 'asc' }, take: pageSize, skip: 0 });
       console.log(`DEBUG: Admin sessions scene - Retrieved ${sessions.length} sessions for page 0`);
       const makeRows = (items: any[]) => items.map((s: any) => [{ text: `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${uzTypeLabel(s.type)})`, callback_data: `sess_open_${s.id}` }]);
@@ -49,6 +56,8 @@ export function sessionsScene(prisma: PrismaClient) {
     const pageSize = 10;
     const skip = page * pageSize;
     const sessions = await (prisma as any).session.findMany({ where: { startAt: { gte: now, lte: end } }, orderBy: { startAt: 'asc' }, take: pageSize, skip });
+    console.log(`DEBUG: Admin sessions scene pagination - Retrieved ${sessions.length} sessions for page ${page}`);
+    
     const makeRows = (items: any[]) => items.map((s: any) => [{ text: `${formatUzDayAndTimeRange(new Date(s.startAt), new Date(s.endAt))} (${uzTypeLabel(s.type)})`, callback_data: `sess_open_${s.id}` }]);
     const rows = makeRows(sessions);
     const navRow: any[] = [];
