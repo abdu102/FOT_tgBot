@@ -428,13 +428,14 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     await ctx.reply(`📅 Tasdiqlangan sessiyalarim:\n${lines}`);
   });
 
-  bot.hears([/👤 Profil/, /👤 Профиль/], async (ctx) => {
+  bot.hears([/👤 Profil/], async (ctx) => {
     if (!requireAuth(ctx)) return;
     
     const userId = (ctx.state as any).userId as string;
     const u = await prisma.user.findUnique({ where: { id: userId }, include: { stats: true } });
     const ps = u?.stats?.[0];
-    await ctx.reply(`👤 ${u?.firstName || ''}\n📞 ${u?.phone || '-'}\n⭐️ ${ps?.rating ?? 0} | ⚽ ${ps?.goals ?? 0} | 🅰️ ${ps?.assists ?? 0} | 🏆 ${ps?.wins ?? 0}`);
+    const couponCount = await (prisma as any).coupon.count({ where: { userId, status: 'AVAILABLE' } }).catch(() => 0);
+    await ctx.reply(`👤 ${u?.firstName || ''}\n📞 ${u?.phone || '-'}\n⭐️ ${ps?.rating ?? 0} | ⚽ ${ps?.goals ?? 0} | 🅰️ ${ps?.assists ?? 0} | 🏆 ${ps?.wins ?? 0}\n🎟️ Kuponlar: ${couponCount} ta`);
     await ctx.reply('⚙️ Sozlamalar', {
       reply_markup: {
         inline_keyboard: [
@@ -489,7 +490,8 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     const userId = (ctx.state as any).userId as string;
     const u = await prisma.user.findUnique({ where: { id: userId }, include: { stats: true } });
     const ps = u?.stats?.[0];
-    await ctx.reply(`👤 ${u?.firstName || ''}\n📞 ${u?.phone || '-'}\n⭐️ ${ps?.rating ?? 0} | ⚽ ${ps?.goals ?? 0} | 🅰️ ${ps?.assists ?? 0} | 🏆 ${ps?.wins ?? 0}`);
+    const couponCount = await (prisma as any).coupon.count({ where: { userId, status: 'AVAILABLE' } }).catch(() => 0);
+    await ctx.reply(`👤 ${u?.firstName || ''}\n📞 ${u?.phone || '-'}\n⭐️ ${ps?.rating ?? 0} | ⚽ ${ps?.goals ?? 0} | 🅰️ ${ps?.assists ?? 0} | 🏆 ${ps?.wins ?? 0}\n🎟️ Kuponlar: ${couponCount} ta`);
     await ctx.reply('⚙️ Sozlamalar', {
       reply_markup: {
         inline_keyboard: [
@@ -556,6 +558,53 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
       await prisma.user.update({ where: { id: userId }, data: { passwordHash: hash } });
       (ctx.session as any).awaitingPassword = false;
       return ctx.reply('✅ Parol yangilandi');
+    }
+    return next();
+  });
+
+  bot.action('profile_edit', async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
+    (ctx.session as any).awaitingProfileField = 'choose';
+    await ctx.reply('Qaysi maʼlumotni o‘zgartiramiz?', {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '👤 Ism', callback_data: 'profile_edit_firstName' }, { text: '📞 Telefon', callback_data: 'profile_edit_phone' }],
+          [{ text: '⬅️ Orqaga', callback_data: 'profile_number_back' }],
+        ],
+      },
+    } as any);
+  });
+
+  bot.action('profile_edit_firstName', async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
+    (ctx.session as any).awaitingFirstName = true;
+    await ctx.reply('Yangi ismingizni yuboring');
+  });
+
+  bot.action('profile_edit_phone', async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
+    (ctx.session as any).awaitingPhone = true;
+    await ctx.reply('Yangi telefon raqamingizni yuboring (masalan: +998901234567)');
+  });
+
+  bot.on('text', async (ctx, next) => {
+    const s: any = ctx.session || {};
+    const userId = (ctx.state as any).userId as string;
+    if (s.awaitingFirstName) {
+      const name = (ctx.message as any).text.trim();
+      if (!name) { await ctx.reply('Noto‘g‘ri qiymat'); s.awaitingFirstName = false; return; }
+      await prisma.user.update({ where: { id: userId }, data: { firstName: name } });
+      s.awaitingFirstName = false;
+      await ctx.reply('✅ Ism yangilandi');
+      return;
+    }
+    if (s.awaitingPhone) {
+      const phone = (ctx.message as any).text.trim();
+      if (!/^\+?\d{7,15}$/.test(phone)) { await ctx.reply('Telefon raqami noto‘g‘ri'); s.awaitingPhone = false; return; }
+      await prisma.user.update({ where: { id: userId }, data: { phone } });
+      s.awaitingPhone = false;
+      await ctx.reply('✅ Telefon yangilandi');
+      return;
     }
     return next();
   });

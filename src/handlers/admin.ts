@@ -74,7 +74,10 @@ export function registerAdminHandlers(bot: Telegraf<Scenes.WizardContext>, prism
       const participants = r.type === 'TEAM' ? (r.team?.members?.length || 0) : 1;
       const amount = r.payment?.amount ?? (40000 * participants);
       const kb = { inline_keyboard: [[{ text: '✅ Tasdiqlash', callback_data: `sess_approve_${r.id}` }], [{ text: '❌ Rad etish', callback_data: `sess_reject_${r.id}` }]] } as any;
-      await ctx.reply(`🧾 ${who}\n📄 Turi: ${r.type === 'TEAM' ? 'Jamoa' : 'Yakka'}\n💰 Summa: ${amount} so‘m\n💳 To‘lov: ${uzPaymentStatus(r.payment?.status)}`, { reply_markup: kb } as any);
+      // Check coupon usage (zero or reduced payment)
+      const usedCoupons = await (prisma as any).coupon.count({ where: { sessionRegistrationId: r.id, status: 'USED' } }).catch(() => 0);
+      const couponLine = usedCoupons > 0 ? `\n🎟️ Kupon: ${usedCoupons} ta ishlatilgan` : '';
+      await ctx.reply(`🧾 ${who}\n📄 Turi: ${r.type === 'TEAM' ? 'Jamoa' : 'Yakka'}\n💰 Summa: ${amount} so‘m\n💳 To‘lov: ${uzPaymentStatus(r.payment?.status)}${couponLine}`, { reply_markup: kb } as any);
       if (r.payment?.receiptFileId) { try { await ctx.replyWithPhoto(r.payment.receiptFileId); } catch {} }
     }
   };
