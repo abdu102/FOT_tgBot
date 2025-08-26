@@ -1,7 +1,7 @@
 import { Scenes, Telegraf } from 'telegraf';
 import type { PrismaClient } from '@prisma/client';
 import { buildMainKeyboard, buildAuthKeyboard, buildWelcomeKeyboard } from '../keyboards/main';
-import { listAvailableSessions } from '../services/session';
+import { listAvailableSessions, listSessionsForTeamSignup } from '../services/session';
 import { formatUzDayAndTimeRange, uzTypeLabel } from '../utils/format';
 import bcrypt from 'bcryptjs';
 
@@ -90,7 +90,10 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
     end.setHours(23, 59, 59, 999);
-    const sessions = await listAvailableSessions(prisma as any, start, end);
+    const type = (ctx.session as any).srType === 'TEAM' ? 'TEAM' : 'INDIVIDUAL';
+    const sessions = type === 'TEAM'
+      ? await listSessionsForTeamSignup(prisma as any, start, end)
+      : await listAvailableSessions(prisma as any, start, end);
     if (!sessions.length) {
       await ctx.reply('Bu hafta uchun mos sessiya topilmadi.');
       return;
@@ -219,8 +222,10 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     if (type === 'INDIVIDUAL') {
       reg = await (prisma as any).sessionRegistration.create({ data: { sessionId, userId: (ctx.state as any).userId, type, status: 'PENDING' } });
     } else {
-      const team = await prisma.team.findFirst({ where: { captainId: (ctx.state as any).userId } });
+      const team = await prisma.team.findFirst({ where: { captainId: (ctx.state as any).userId }, include: { members: true } });
       if (!team) return ctx.reply('Avval jamoa yarating: /team');
+      const count = team.members.length;
+      if (count !== 7) return ctx.reply(`❌ Jamoada aniq 7 o'yinchi bo'lishi kerak. Hozir: ${count}`);
       reg = await (prisma as any).sessionRegistration.create({ data: { sessionId, teamId: team.id, type, status: 'PENDING' } });
     }
     const count = type === 'TEAM' && reg?.teamId ? (await prisma.teamMember.count({ where: { teamId: reg.teamId } })) : 1;

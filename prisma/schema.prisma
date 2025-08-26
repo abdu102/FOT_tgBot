@@ -22,6 +22,7 @@ model User {
   passwordHash         String?
   isActive             Boolean               @default(true)
   pendingInviteToken   String?
+  preferredNumber      Int?
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   teams                TeamMember[]
@@ -33,6 +34,7 @@ model User {
   captainTeams         Team[]                @relation("TeamCaptain")
   momMatches           Match[]               @relation("MatchMoMUser")
   momSessions          Session[]             @relation("SessionMoMUser")
+  coupons              Coupon[]
 }
 
 model Team {
@@ -61,6 +63,7 @@ model TeamMember {
   teamId String
   userId String
   role   String? // e.g., player, substitute
+  number Int?
   team   Team    @relation(fields: [teamId], references: [id])
   user   User    @relation(fields: [userId], references: [id])
 
@@ -212,6 +215,23 @@ enum PaymentStatus {
   CONFIRMED
   FAILED
   REFUNDED
+}
+
+model Coupon {
+  id                     String               @id @default(cuid())
+  userId                 String
+  status                 CouponStatus         @default(AVAILABLE)
+  issuedAt               DateTime             @default(now())
+  usedAt                 DateTime?
+  sessionRegistrationId  String?
+
+  user                   User                 @relation(fields: [userId], references: [id])
+  sessionRegistration    SessionRegistration? @relation(fields: [sessionRegistrationId], references: [id])
+}
+
+enum CouponStatus {
+  AVAILABLE
+  USED
 }
 
 model MatchStat {

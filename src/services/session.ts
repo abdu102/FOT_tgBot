@@ -130,4 +130,42 @@ export async function listAvailableSessions(
   return result;
 }
 
+// List sessions that can accept a full team (at least one empty slot and capacity for a 7-player team)
+export async function listSessionsForTeamSignup(
+  prisma: PrismaClient,
+  startInclusive: Date,
+  endInclusive: Date
+) {
+  const key = `sess:listTeam:${startInclusive.toISOString().slice(0,10)}:${endInclusive.toISOString().slice(0,10)}`;
+  try {
+    if (cache) {
+      const cached = await cache.get(key);
+      if (cached) return JSON.parse(cached);
+    }
+  } catch {}
+  const sessions = await (prisma as any).session.findMany({
+    where: {
+      startAt: { gte: startInclusive, lte: endInclusive },
+      status: 'PLANNED',
+    },
+    include: {
+      teams: { include: { team: { include: { members: true } } } },
+    },
+    orderBy: { startAt: 'asc' },
+    take: 200,
+  });
+
+  const hasSlotForFullTeam = (s: any) => {
+    const maxTeams: number = typeof s.maxTeams === 'number' ? s.maxTeams : 4;
+    const sessionTeams: any[] = Array.isArray(s.teams) ? s.teams : [];
+    if (sessionTeams.length >= maxTeams) return false;
+    // If there is at least one available team slot, a full team can join
+    return true;
+  };
+
+  const result = sessions.filter(hasSlotForFullTeam);
+  try { if (cache) await cache.setex(key, 60, JSON.stringify(result)); } catch {}
+  return result;
+}
+
 

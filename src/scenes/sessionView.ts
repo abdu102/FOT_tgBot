@@ -26,6 +26,8 @@ export function sessionViewScene(prisma: PrismaClient) {
         actions.push([{ text: '➕ Match qo‘shish', callback_data: `sess_add_match_${s.id}` }]);
         actions.push([{ text: '📜 Matches', callback_data: `sess_matches_${s.id}` }]);
         actions.push([{ text: '📊 Statistika kiritish', callback_data: `sess_stats_entry_${s.id}` }]);
+      } else if (s.status === 'FINISHED') {
+        // Hide MoM. Only stats remain below
       }
       actions.push([{ text: '📊 Statistika', callback_data: `sess_stats_${s.id}` }]);
       actions.push([{ text: '⬅️ Sessiyalar', callback_data: 'admin_sessions' }]);
