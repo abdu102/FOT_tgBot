@@ -3,16 +3,40 @@ import type { PrismaClient } from '@prisma/client';
 import { formatUzDayAndTimeRange, uzTypeLabel } from '../utils/format';
 import { safeAnswerCb, editOrReply } from '../utils/telegram';
 
+// Calendar helper function
+async function showCalendar(ctx: any) {
+  const now = new Date();
+  const calendar: any[][] = [];
+  
+  // Show next 14 days as calendar buttons
+  for (let i = 0; i < 14; i++) {
+    const date = new Date(now);
+    date.setDate(date.getDate() + i);
+    const dateStr = date.toISOString().slice(0, 10); // YYYY-MM-DD
+    const label = i === 0 ? 'Bugun' : i === 1 ? 'Ertaga' : 
+      `${date.getDate()}.${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+    
+    if (i % 2 === 0) {
+      calendar.push([{ text: label, callback_data: `sess_create_${dateStr}` }]);
+    } else {
+      calendar[calendar.length - 1].push({ text: label, callback_data: `sess_create_${dateStr}` });
+    }
+  }
+  
+  await ctx.reply('Sessiya sanasini tanlang:', { 
+    reply_markup: { inline_keyboard: calendar } 
+  });
+}
+
 export function sessionsScene(prisma: PrismaClient) {
   const scene = new Scenes.WizardScene<Scenes.WizardContext>(
     'admin:sessions',
     async (ctx) => {
       if (!(ctx.state as any).isAdmin) { await ctx.reply('Faqat admin'); return; }
-      // If entering in create-only mode, start creation flow without calendar
+      // If entering in create-only mode, start creation flow with calendar
       if ((ctx.scene.state as any)?.createOnly) {
-        console.log('DEBUG: Sessions scene entered in createOnly mode, asking for date');
-        (ctx.session as any).sessCreateAskDay = true;
-        await ctx.reply('Kunni kiriting (YYYY-MM-DD)');
+        console.log('DEBUG: Sessions scene entered in createOnly mode, showing calendar');
+        await showCalendar(ctx);
         return;
       }
       // Show upcoming sessions (2 weeks) with pagination (10 per page)
@@ -81,31 +105,48 @@ export function sessionsScene(prisma: PrismaClient) {
     if (!(ctx.state as any).isAdmin) return;
     const day = (ctx.match as any)[1] as string;
     (ctx.session as any).sessCreateDay = day;
+    console.log(`DEBUG: Date selected: ${day}`);
     try { await ctx.answerCbQuery(); } catch {}
-    await ctx.reply('Boshlanish vaqti (HH:mm)');
+    await ctx.reply('Boshlanish vaqti (HH:mm):\n\nMasalan: 18:00');
   });
 
   (scene as any).on?.('text', async (ctx: any, next: any) => {
     const sess: any = ctx.session || {};
-    if ((sess as any).sessCreateAskDay && !sess.sessCreateDay) {
-      const raw = (ctx.message as any).text.trim();
-      (ctx.session as any).sessCreateDay = raw;
-      (ctx.session as any).sessCreateAskDay = false;
-      await ctx.reply('Boshlanish vaqti (HH:mm)');
-      return;
-    }
+    
+    // Handle start time input
     if (sess.sessCreateDay && !sess.sessCreateStart) {
-      sess.sessCreateStart = (ctx.message as any).text.trim();
-      await ctx.reply('Tugash vaqti (HH:mm)');
+      const timeText = (ctx.message as any).text.trim();
+      console.log(`DEBUG: Start time entered: ${timeText}`);
+      
+      // Validate time format (HH:mm)
+      if (!/^\d{1,2}:\d{2}$/.test(timeText)) {
+        await ctx.reply('Noto\'g\'ri format! Masalan: 18:00');
+        return;
+      }
+      
+      sess.sessCreateStart = timeText;
+      await ctx.reply('Tugash vaqti (HH:mm):\n\nMasalan: 20:00');
       return;
     }
+    
+    // Handle end time input
     if (sess.sessCreateDay && sess.sessCreateStart && !sess.sessCreateEnd) {
-      const end = `${sess.sessCreateDay}T${(ctx.message as any).text.trim()}:00`;
-      sess.sessCreateEnd = end;
+      const timeText = (ctx.message as any).text.trim();
+      console.log(`DEBUG: End time entered: ${timeText}`);
+      
+      // Validate time format (HH:mm)
+      if (!/^\d{1,2}:\d{2}$/.test(timeText)) {
+        await ctx.reply('Noto\'g\'ri format! Masalan: 20:00');
+        return;
+      }
+      
+      sess.sessCreateEnd = timeText;
       sess.awaitingStadium = true;
       await ctx.reply('Stadion nomi?');
       return;
     }
+    
+    // Handle stadium name input
     if (sess.sessCreateDay && sess.sessCreateStart && sess.sessCreateEnd && sess.awaitingStadium) {
       sess.stadium = (ctx.message as any).text.trim();
       sess.awaitingStadium = false;
@@ -113,6 +154,8 @@ export function sessionsScene(prisma: PrismaClient) {
       await ctx.reply('Stadion joyi / Place?');
       return;
     }
+    
+    // Handle place input
     if (sess.sessCreateDay && sess.sessCreateStart && sess.sessCreateEnd && sess.awaitingPlace) {
       sess.place = (ctx.message as any).text.trim();
       sess.awaitingPlace = false;
@@ -123,6 +166,7 @@ export function sessionsScene(prisma: PrismaClient) {
       await ctx.reply('Turi? (5v5 / 6v6)', { reply_markup: kb } as any);
       return;
     }
+    
     return next();
   });
 
@@ -130,15 +174,74 @@ export function sessionsScene(prisma: PrismaClient) {
     const t = (ctx.match as any)[1];
     const sess: any = ctx.session || {};
     if (!sess.sessCreateDay || !sess.sessCreateStart || !sess.sessCreateEnd) return ctx.answerCbQuery();
-    const start = `${sess.sessCreateDay}T${sess.sessCreateStart}:00`;
+    
     const type = t === '6' ? 'SIX_V_SIX' : 'FIVE_V_FIVE';
+    
     // Ensure we have stadium/place collected
     if (!sess.stadium) { sess.awaitingStadium = true; await ctx.reply('Stadion nomi?'); return; }
     if (!sess.place) { sess.awaitingPlace = true; await ctx.reply('Stadion joyi / Place?'); return; }
-    const s = await (prisma as any).session.create({ data: { startAt: new Date(start), endAt: new Date(sess.sessCreateEnd), type, stadium: sess.stadium, place: sess.place } });
-    sess.sessCreateDone = true; sess.sessCreateDay = undefined; sess.sessCreateStart = undefined; sess.sessCreateEnd = undefined; sess.sessCreateType = undefined;
-    await ctx.answerCbQuery('Yaratildi');
-    await ctx.reply('✅ Sessiya yaratildi', { reply_markup: { inline_keyboard: [[{ text: 'Ochil', callback_data: `sess_open_${s.id}` }], [{ text: '⬅️ Menyu', callback_data: 'open_admin_panel' }]] } } as any);
+    
+    // Create exact timestamps with proper timezone handling
+    const startDateTime = new Date(`${sess.sessCreateDay}T${sess.sessCreateStart}:00`);
+    const endDateTime = new Date(`${sess.sessCreateDay}T${sess.sessCreateEnd}:00`);
+    
+    console.log(`DEBUG: Creating session with exact timestamps:`);
+    console.log(`DEBUG: Start: ${startDateTime.toISOString()}`);
+    console.log(`DEBUG: End: ${endDateTime.toISOString()}`);
+    console.log(`DEBUG: Stadium: ${sess.stadium}`);
+    console.log(`DEBUG: Place: ${sess.place}`);
+    console.log(`DEBUG: Type: ${type}`);
+    
+    try {
+      const s = await (prisma as any).session.create({ 
+        data: { 
+          startAt: startDateTime,
+          endAt: endDateTime, 
+          type, 
+          stadium: sess.stadium, 
+          place: sess.place,
+          status: 'PLANNED',
+          maxTeams: 4
+        } 
+      });
+      
+      console.log(`DEBUG: Session created successfully with ID: ${s.id}`);
+      
+      // Save data for confirmation message before clearing
+      const confirmationData = {
+        day: sess.sessCreateDay,
+        start: sess.sessCreateStart,
+        end: sess.sessCreateEnd,
+        stadium: sess.stadium,
+        place: sess.place
+      };
+      
+      // Clear session data
+      sess.sessCreateDone = true; 
+      sess.sessCreateDay = undefined; 
+      sess.sessCreateStart = undefined; 
+      sess.sessCreateEnd = undefined; 
+      sess.sessCreateType = undefined;
+      sess.stadium = undefined;
+      sess.place = undefined;
+      sess.awaitingStadium = false;
+      sess.awaitingPlace = false;
+      
+      await ctx.answerCbQuery('Sessiya yaratildi!');
+      await ctx.reply(`✅ Sessiya muvaffaqiyatli yaratildi!\n\n🗓️ Sana: ${confirmationData.day}\n⏰ Vaqt: ${confirmationData.start} - ${confirmationData.end}\n🏟️ Stadion: ${confirmationData.stadium}\n📍 Joy: ${confirmationData.place}\n🧩 Turi: ${type === 'SIX_V_SIX' ? '6v6' : '5v5'}`, { 
+        reply_markup: { 
+          inline_keyboard: [
+            [{ text: '👁 Sessiyani ko\'rish', callback_data: `sess_open_${s.id}` }], 
+            [{ text: '⬅️ Admin panel', callback_data: 'open_admin_panel' }]
+          ] 
+        } 
+      } as any);
+      
+    } catch (error) {
+      console.error('DEBUG: Session creation failed:', error);
+      await ctx.answerCbQuery('Xatolik yuz berdi');
+      await ctx.reply('❌ Sessiya yaratishda xatolik yuz berdi. Qaytadan urinib ko\'ring.');
+    }
   });
 
   // Session opening handler within the scene
