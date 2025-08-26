@@ -207,7 +207,7 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
   bot.action(/sr_pick_(.*)/, async (ctx) => {
     const sessionId = (ctx.match as any)[1] as string;
     const sess = (ctx.session as any) || {};
-    const s = await (prisma as any).session.findUnique({ where: { id: sessionId }, include: { teams: { include: { team: { include: { members: true } } } } } });
+    const s = await (prisma as any).session.findUnique({ where: { id: sessionId }, include: { teams: { include: { team: { include: { members: { include: { user: true } } } } } } } });
     if (!s) return;
     // Guard: block registration if session is already full (4 teams with >= 7 members each)
     const maxTeams: number = typeof (s as any).maxTeams === 'number' ? (s as any).maxTeams : 4;
@@ -220,18 +220,76 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
     const type = sess.srType === 'TEAM' ? 'TEAM' : 'INDIVIDUAL';
     let reg: any = null;
     if (type === 'INDIVIDUAL') {
+      // If user has preferred number, check against first NABOR team with space
+      const userId = (ctx.state as any).userId as string;
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      const preferred = user?.preferredNumber || null;
+      if (preferred) {
+        const nabor = sessionTeams.find((st: any) => (st.team?.name || '').startsWith('FOT NABOR') && (st.team?.members?.length || 0) < 7);
+        if (nabor) {
+          const used = new Set<number>();
+          for (const m of (nabor.team?.members || []) as any[]) {
+            const num = m.number ?? m.user?.preferredNumber ?? null;
+            if (typeof num === 'number') used.add(num);
+          }
+          if (used.has(preferred)) {
+            // Ask to choose another number before registration
+            const available: number[] = [];
+            for (let i = 1; i <= 25; i++) if (!used.has(i)) available.push(i);
+            const rows: any[] = [];
+            for (let i = 0; i < available.length; i += 5) {
+              rows.push(available.slice(i, i + 5).map((n) => ({ text: String(n), callback_data: `sr_num_pick_${n}_${sessionId}` })));
+            }
+            rows.push([{ text: '⬅️ Orqaga', callback_data: 'sr_back' }]);
+            await ctx.reply('Bu NABOR jamoasida sizning raqamingiz band. Iltimos, boshqasini tanlang:', { reply_markup: { inline_keyboard: rows } } as any);
+            return;
+          }
+        }
+      }
       reg = await (prisma as any).sessionRegistration.create({ data: { sessionId, userId: (ctx.state as any).userId, type, status: 'PENDING' } });
     } else {
-      const team = await prisma.team.findFirst({ where: { captainId: (ctx.state as any).userId }, include: { members: true } });
+      const team = await prisma.team.findFirst({ where: { captainId: (ctx.state as any).userId }, include: { members: { include: { user: true } } } });
       if (!team) return ctx.reply('Avval jamoa yarating: /team');
       const count = team.members.length;
       if (count !== 7) return ctx.reply(`❌ Jamoada aniq 7 o'yinchi bo'lishi kerak. Hozir: ${count}`);
+      // Check number duplicates within team (TeamMember.number or fallback to user's preferredNumber)
+      const seen = new Map<number, string[]>();
+      for (const m of team.members as any[]) {
+        const num = (m as any).number ?? (m as any).user?.preferredNumber ?? null;
+        if (typeof num === 'number') {
+          const arr = seen.get(num) || [];
+          arr.push(`${m.user.firstName} ${m.user.lastName || ''}`.trim());
+          seen.set(num, arr);
+        }
+      }
+      const conflicts = Array.from(seen.entries()).filter(([_, arr]) => arr.length > 1);
+      if (conflicts.length) {
+        const lines = conflicts.map(([num, arr]) => `#${num}: ${arr.join(', ')}`).join('\n');
+        return ctx.reply(`❌ Jamoada bir xil raqamlar bor. Iltimos, raqamlarni o'zgartiring:\n${lines}`);
+      }
       reg = await (prisma as any).sessionRegistration.create({ data: { sessionId, teamId: team.id, type, status: 'PENDING' } });
     }
     const count = type === 'TEAM' && reg?.teamId ? (await prisma.teamMember.count({ where: { teamId: reg.teamId } })) : 1;
     const amount = 40000 * count;
     const pay = await (prisma as any).payment.create({ data: { sessionRegistrationId: reg.id, amount, method: process.env.PAYMENT_METHOD || 'MANUAL', status: 'PENDING', userId: (ctx.state as any).userId, teamId: reg.teamId || null } });
     sess.awaitReceiptForRegId = reg.id;
+    await ctx.reply(`To‘lov summasi: ${amount} UZS\n${require('../services/payments').paymentInstructions()}`);
+    await ctx.reply('Iltimos, to‘lov chekini surat qilib yuboring');
+  });
+
+  // Number pick during single registration conflict
+  bot.action(/sr_num_pick_(\d+)_(.*)/, async (ctx) => {
+    if (!requireAuth(ctx)) return;
+    const n = parseInt((ctx.match as any)[1], 10);
+    const sessionId = (ctx.match as any)[2] as string;
+    const userId = (ctx.state as any).userId as string;
+    if (n < 1 || n > 25) { await ctx.answerCbQuery('Noto\'g\'ri'); return; }
+    await prisma.user.update({ where: { id: userId }, data: { preferredNumber: n } });
+    await ctx.answerCbQuery('Raqam o\'zgartirildi');
+    // Proceed to create registration now
+    const reg = await (prisma as any).sessionRegistration.create({ data: { sessionId, userId, type: 'INDIVIDUAL', status: 'PENDING' } });
+    const amount = 40000;
+    await (prisma as any).payment.create({ data: { sessionRegistrationId: reg.id, amount, method: process.env.PAYMENT_METHOD || 'MANUAL', status: 'PENDING', userId } });
     await ctx.reply(`To‘lov summasi: ${amount} UZS\n${require('../services/payments').paymentInstructions()}`);
     await ctx.reply('Iltimos, to‘lov chekini surat qilib yuboring');
   });
@@ -303,12 +361,51 @@ export function registerMainHandlers(bot: Telegraf<Scenes.WizardContext>, prisma
       reply_markup: {
         inline_keyboard: [
           [{ text: '✏️ Ma\'lumotni o\'zgartirish / Изменить данные', callback_data: 'profile_edit' }],
+          [{ text: `🔢 O'yinchi raqami: ${u?.preferredNumber ?? '—'}`, callback_data: 'profile_number' }],
           [{ text: '🔐 Parolni o\'zgartirish / Сменить пароль', callback_data: 'profile_password' }],
           [{ text: '🚪 Chiqish / Выйти', callback_data: 'profile_logout' }],
         ],
       },
     } as any);
   });
+
+  // Number selection grid 1..25
+  function numberKeyboard(selected?: number) {
+    const rows: any[] = [];
+    const makeBtn = (n: number) => ({ text: selected === n ? `✅ ${n}` : String(n), callback_data: `profile_num_pick_${n}` });
+    for (let r = 0; r < 5; r++) {
+      const row: any[] = [];
+      for (let c = 1; c <= 5; c++) {
+        const n = r * 5 + c;
+        row.push(makeBtn(n));
+      }
+      rows.push(row);
+    }
+    rows.push([{ text: '⬅️ Orqaga', callback_data: 'profile_number_back' }]);
+    return { inline_keyboard: rows } as any;
+  }
+
+  bot.action('profile_number', async (ctx) => {
+    if (!requireAuth(ctx)) return;
+    const userId = (ctx.state as any).userId as string;
+    const u = await prisma.user.findUnique({ where: { id: userId } });
+    await ctx.answerCbQuery();
+    await ctx.reply('Raqamni tanlang (1–25):', { reply_markup: numberKeyboard(u?.preferredNumber || undefined) } as any);
+  });
+
+  bot.action(/profile_num_pick_(\d+)/, async (ctx) => {
+    if (!requireAuth(ctx)) return;
+    const n = parseInt((ctx.match as any)[1], 10);
+    const userId = (ctx.state as any).userId as string;
+    if (n < 1 || n > 25) { await ctx.answerCbQuery('Noto\'g\'ri'); return; }
+    await prisma.user.update({ where: { id: userId }, data: { preferredNumber: n } });
+    await ctx.answerCbQuery('Saqlandi');
+    await ctx.editMessageReplyMarkup(numberKeyboard(n) as any).catch(async () => {
+      await ctx.reply('Saqlandi', { reply_markup: numberKeyboard(n) } as any);
+    });
+  });
+
+  bot.action('profile_number_back', async (ctx) => { try { await ctx.answerCbQuery(); } catch {} });
 
   // Add handler for "Mening sessiyalarim" button 
   bot.hears([/📅 Mening sessiyalarim/, /📅 Мои сессии/], async (ctx) => {
